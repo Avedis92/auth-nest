@@ -48,6 +48,9 @@ CREATE TABLE users (
     email VARCHAR(300) UNIQUE NOT NULL,
     password TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'user',
+    two_factor_secret TEXT,
+    is_user_registered_for_two_factor BOOLEAN NOT NULL DEFAULT false,
+    is_two_factor_enabled BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
