@@ -23,4 +23,7 @@ export class UsersService {
     const foundUser = await this.usersRepository.findById(id);
     return foundUser;
   }
+  async setTowFactorSecret(email: string, secret: string) {
+    await this.usersRepository.setTwoFactorSecret(email, secret);
+  }
 }

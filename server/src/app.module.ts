@@ -11,6 +11,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ProtectedModule } from './protected/protected.module';
 import { MailerModule } from './mailer/mailer.module';
 import { smtpConfig } from './config/smtp.config';
+import { TwoFaModule } from './two-fa/two-fa.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { smtpConfig } from './config/smtp.config';
     }),
     ProtectedModule,
     MailerModule,
+    TwoFaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

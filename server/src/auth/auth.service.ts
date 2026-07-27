@@ -10,6 +10,7 @@ import {
   USERSTATUS,
   JWTPayloadType,
   JWT_TOKEN_ERROR_STATUS,
+  CreateUserType,
 } from 'src/common/types';
 import { REFRESH_TOKEN_MAX_AGE_MS } from 'src/common/constant';
 import type {
@@ -27,10 +28,12 @@ export class AuthService {
     private authRepository: AuthRepository,
   ) {}
 
-  private generateAccessToken(payload: JWTPayloadType) {
+  generateAccessToken(payload: Partial<JWTPayloadType>, temporary = false) {
     return this.jwtService.sign(payload, {
       secret: this.configService.get('jwt.jwtAccessTokenSecret'),
-      expiresIn: this.configService.get('jwt.jwtAccessTokenExpire'),
+      expiresIn: temporary
+        ? this.configService.get('jwt.jwtTempAccessTokenExpire')
+        : this.configService.get('jwt.jwtAccessTokenExpire'),
     });
   }
 
@@ -46,7 +49,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async validateIfUserExists(userDto: CreateUserDto) {
+  async validateIfUserExists(userDto: CreateUserDto) {
     const { email, password } = userDto;
     const user = await this.userService.findByEmail(email);
     const passwordsMatches = await bcrypt.compare(password, user.password);
@@ -91,20 +94,21 @@ export class AuthService {
     await this.userService.create(userDto);
   }
 
-  async singIn(userDto: CreateUserDto) {
-    const user = await this.validateIfUserExists(userDto);
+  async singIn(user: CreateUserType) {
     const { id } = user;
     // generate a new session id for the newly signed in user
     const session_id = crypto.randomUUID();
 
     const payload: JWTPayloadType = { sid: session_id, uid: id };
-    // const accessToken = this.generateAccessToken(payload);
-    // const refreshToken = this.generateRefreshToken(payload);
+
     const { accessToken, refreshToken } =
       this.generateBothAccessAndRefreshToken(payload);
 
     await this.authRepository.createSession(session_id, refreshToken, id);
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 
   async signOut(refreshToken?: string) {

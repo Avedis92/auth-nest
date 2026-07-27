@@ -28,3 +28,26 @@ export const validateAuthCredentials = (values: AuthCredentialsDto): FieldErrors
   }
   return fieldErrors;
 };
+
+export const twoFaCodeSchema = z.object({
+  code: z.string().length(6, 'Code must be 6 digits').regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+export type TwoFaCodeDto = z.infer<typeof twoFaCodeSchema>;
+
+export interface TwoFaCodeFieldErrors {
+  code?: string;
+}
+
+export const validateTwoFaCode = (values: TwoFaCodeDto): TwoFaCodeFieldErrors => {
+  const result = twoFaCodeSchema.safeParse(values);
+  if (result.success) return {};
+
+  const fieldErrors: TwoFaCodeFieldErrors = {};
+  for (const issue of result.error.issues) {
+    if (issue.path[0] === 'code' && !fieldErrors.code) {
+      fieldErrors.code = issue.message;
+    }
+  }
+  return fieldErrors;
+};

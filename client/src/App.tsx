@@ -37,6 +37,18 @@ const App = () => {
   const handleSignInError = () =>
     setAlert({ severity: 'error', message: 'Failed to sign in. Please try again' });
 
+  const handleTwoFaError = () =>
+    setAlert({
+      severity: 'error',
+      message: 'Failed to complete two-factor authentication. Please try again',
+    });
+
+  const handleTwoFaSessionExpired = () =>
+    setAlert({
+      severity: 'error',
+      message: 'Your two-factor authentication session has expired. Please sign in again',
+    });
+
   const handleForgotPasswordSuccess = () =>
     setAlert({ severity: 'success', message: 'Success!Check out your email' });
 
@@ -99,6 +111,8 @@ const App = () => {
                 onSignInError={handleSignInError}
                 onForgotPasswordSuccess={handleForgotPasswordSuccess}
                 onForgotPasswordError={handleForgotPasswordError}
+                onTwoFaError={handleTwoFaError}
+                onTwoFaSessionExpired={handleTwoFaSessionExpired}
               />
             )
           }

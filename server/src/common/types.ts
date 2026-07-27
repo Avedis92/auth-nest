@@ -12,6 +12,9 @@ export interface CreateUserType {
   role: USERROLE;
   created_at: Date;
   updated_at: Date;
+  is_user_registered_for_two_factor: boolean;
+  two_factor_secret: string;
+  is_two_factor_enabled: boolean;
 }
 
 export enum USERSTATUS {
@@ -36,6 +39,10 @@ export enum JWT_TOKEN_ERROR_STATUS {
 
 export enum USERS_ERROR_STATUS {
   NOT_FOUND = 'Not_Found',
+}
+
+export enum TWO_FA_ERROR_STATUS {
+  INVALID = 'Invalid_code',
 }
 
 export interface JWTPayloadType {

@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import { Box, Button, Stack, TextField, Typography, Link } from '@mui/material';
+import {
+  Box,
+  Button,
+  Checkbox,
+  FormControlLabel,
+  Stack,
+  TextField,
+  Typography,
+  Link,
+} from '@mui/material';
 import { validateAuthCredentials, type FieldErrors } from '../../validation/authSchema';
 import { signUp } from '../../api/client';
 
@@ -12,6 +21,7 @@ interface SignUpFormProps {
 export const SignUpForm = ({ onSuccess, onError, onSwitchToSignIn }: SignUpFormProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isUserRegisteredFor2FA, setIsUserRegisteredFor2FA] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,7 +34,7 @@ export const SignUpForm = ({ onSuccess, onError, onSwitchToSignIn }: SignUpFormP
 
     setSubmitting(true);
     try {
-      await signUp({ email, password });
+      await signUp({ email, password, isUserRegisteredFor2FA });
       onSuccess();
     } catch {
       onError();
@@ -56,6 +66,15 @@ export const SignUpForm = ({ onSuccess, onError, onSwitchToSignIn }: SignUpFormP
           error={Boolean(fieldErrors.password)}
           helperText={fieldErrors.password ?? ' '}
           fullWidth
+        />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={isUserRegisteredFor2FA}
+              onChange={(e) => setIsUserRegisteredFor2FA(e.target.checked)}
+            />
+          }
+          label="Enable two-factor authentication"
         />
         <Button type="submit" variant="contained" disabled={submitting} fullWidth>
           Sign up

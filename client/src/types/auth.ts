@@ -48,3 +48,27 @@ export const JWT_TOKEN_ERROR_STATUS = {
 export const USERS_ERROR_STATUS = {
   NOT_FOUND: 'Not_Found',
 } as const;
+
+export interface SignUpCredentials extends AuthCredentials {
+  isUserRegisteredFor2FA: boolean;
+}
+
+export interface TwoFaChallengeResponse {
+  twoFactorEnabled: boolean;
+  userRegisteredForTwoFactor: boolean;
+  tempToken: string;
+}
+
+export type SignInResponse = SignInSuccessResponse | TwoFaChallengeResponse;
+
+export const isTwoFaChallenge = (
+  response: SignInResponse,
+): response is TwoFaChallengeResponse => 'userRegisteredForTwoFactor' in response;
+
+export interface TwoFaCodeCredentials {
+  code: string;
+}
+
+export const TWO_FA_ERROR_STATUS = {
+  INVALID: 'Invalid_code',
+} as const;

@@ -39,7 +39,7 @@ export class AuthController {
   @UsePipes(new ValidateUsersPipe(createUserSchema))
   async signUp(@Body() userDto: CreateUserDto) {
     // To signup a user, the following must be done:
-    // 1- Add user's email and hashed password to the users table
+    // 1- Add user's email and hashed password and their choice of use 2FA to the users table
     // 2- If the insertion is successful, then generate an access token, snd then generate a refresh token
     // 3- Hash the new refresh token.
     // 4- Generate new session using the new refresh token, use the new user's id for the user_id column (status by default active)
@@ -68,8 +68,18 @@ export class AuthController {
     // 7- Hash the new refresh token.
     // 8- Generate new session using the new refresh token, use the new user's id for the user_id column (status by default active)
     // 9- return the access token and the refresh token after successfully creating the user's session.
-    const { accessToken, refreshToken } =
-      await this.authService.singIn(userDto);
+    // 10- When sending the tokens also send info if user is registered for 2FA and if their 2FA is already enabled or not.
+    // 11- If the user is registered for 2FA but their 2FA is still not enabled, the frontend should send register request,
+    // so that the user register the app with the authenticator app.
+    const user = await this.authService.validateIfUserExists(userDto);
+    if (user.is_user_registered_for_two_factor) {
+      return {
+        twoFactorEnabled: user.is_two_factor_enabled,
+        userRegisteredForTwoFactor: user.is_user_registered_for_two_factor,
+        tempToken: this.authService.generateAccessToken({ uid: user.id }, true),
+      };
+    }
+    const { accessToken, refreshToken } = await this.authService.singIn(user);
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       maxAge: REFRESH_TOKEN_MAX_AGE_MS, // valid for 1 day

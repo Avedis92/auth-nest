@@ -11,5 +11,6 @@ import { MailerModule } from 'src/mailer/mailer.module';
   controllers: [AuthController],
   providers: [AuthService, AuthRepository, JWTAuthGuard],
   imports: [UsersModule, JwtModule.register({}), MailerModule],
+  exports: [AuthService, AuthRepository],
 })
 export class AuthModule {}

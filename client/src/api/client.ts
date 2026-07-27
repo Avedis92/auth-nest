@@ -3,6 +3,9 @@ import type {
   AuthSuccessResponse,
   ApiErrorResponse,
   SignInSuccessResponse,
+  SignInResponse,
+  SignUpCredentials,
+  TwoFaCodeCredentials,
   ProtectedResourceResponse,
   ChangePasswordCredentials,
   ForgotPasswordCredentials,
@@ -25,7 +28,7 @@ export class ApiRequestError extends Error {
 }
 
 export const signUp = async (
-  credentials: AuthCredentials,
+  credentials: SignUpCredentials,
 ): Promise<AuthSuccessResponse> => {
   const response = await fetch(`${API_URL}/api/v1/auth/signup`, {
     method: "POST",
@@ -45,10 +48,70 @@ export const signUp = async (
 
 export const signIn = async (
   credentials: AuthCredentials,
-): Promise<SignInSuccessResponse> => {
+): Promise<SignInResponse> => {
   const response = await fetch(`${API_URL}/api/v1/auth/signin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(credentials),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new ApiRequestError(response.status, data as ApiErrorResponse);
+  }
+
+  return data as SignInResponse;
+};
+
+export const registerTwoFa = async (tempToken: string): Promise<string> => {
+  const response = await fetch(`${API_URL}/api/v1/two-fa/register`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${tempToken}` },
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new ApiRequestError(response.status, data as ApiErrorResponse);
+  }
+
+  return response.text();
+};
+
+export const enableTwoFa = async (
+  tempToken: string,
+  credentials: TwoFaCodeCredentials,
+): Promise<SignInSuccessResponse> => {
+  const response = await fetch(`${API_URL}/api/v1/two-fa/enable`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tempToken}`,
+    },
+    credentials: "include",
+    body: JSON.stringify(credentials),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new ApiRequestError(response.status, data as ApiErrorResponse);
+  }
+
+  return data as SignInSuccessResponse;
+};
+
+export const verifyTwoFa = async (
+  tempToken: string,
+  credentials: TwoFaCodeCredentials,
+): Promise<SignInSuccessResponse> => {
+  const response = await fetch(`${API_URL}/api/v1/two-fa/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tempToken}`,
+    },
     credentials: "include",
     body: JSON.stringify(credentials),
   });

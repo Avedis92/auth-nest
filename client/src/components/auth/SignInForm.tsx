@@ -2,9 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { Box, Button, Stack, TextField, Typography, Link } from '@mui/material';
 import { validateAuthCredentials, type FieldErrors } from '../../validation/authSchema';
 import { signIn } from '../../api/client';
+import type { SignInResponse } from '../../types/auth';
 
 interface SignInFormProps {
-  onSuccess: (token: string) => void;
+  onSuccess: (response: SignInResponse) => void;
   onError: () => void;
   onSwitchToSignUp: () => void;
   onForgotPassword: () => void;
@@ -31,7 +32,7 @@ export const SignInForm = ({
     setSubmitting(true);
     try {
       const response = await signIn({ email, password });
-      onSuccess(response.token);
+      onSuccess(response);
     } catch {
       onError();
     } finally {

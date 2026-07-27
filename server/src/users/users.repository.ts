@@ -19,12 +19,12 @@ export class UsersRepository {
     userDto: CreateUserDto,
   ): Promise<Pick<CreateUserType, 'id' | 'email'>> {
     try {
-      const { email, password } = userDto;
+      const { email, password, isUserRegisteredFor2FA = false } = userDto;
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = await this.pool.query(
-        `INSERT INTO users (email, password)
-                VALUES($1, $2) RETURNING id, email`,
-        [email, hashedPassword],
+        `INSERT INTO users (email, password, is_user_registered_for_two_factor)
+                VALUES($1, $2, $3) RETURNING id, email`,
+        [email, hashedPassword, isUserRegisteredFor2FA],
       );
       return result.rows[0] as CreateUserType;
     } catch (error) {
@@ -85,6 +85,22 @@ export class UsersRepository {
     } catch (error) {
       console.error(
         `ERROR WHEN SEARCHING FOR USER WITH ID ${id}. error: ${(error as Error).message}`,
+      );
+      handleDatabaseError(error);
+    }
+  }
+
+  async setTwoFactorSecret(email: string, secret: string) {
+    try {
+      await this.pool.query(
+        `UPDATE users
+        SET two_factor_secret = $1
+        WHERE email=$2`,
+        [secret, email],
+      );
+    } catch (error) {
+      console.error(
+        `ERROR WHEN ADDING TWO FACTOR SECRET TO USER WITH EMAIL ${email}. error: ${(error as Error).message}`,
       );
       handleDatabaseError(error);
     }

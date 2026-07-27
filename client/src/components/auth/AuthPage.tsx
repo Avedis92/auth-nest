@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { SignUpForm } from './SignUpForm';
 import { SignInForm } from './SignInForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { TwoFaSetupForm } from './TwoFaSetupForm';
+import { TwoFaVerifyForm } from './TwoFaVerifyForm';
+import {
+  isTwoFaChallenge,
+  type SignInResponse,
+  type SignInSuccessResponse,
+} from '../../types/auth';
 
-type AuthView = 'signup' | 'signin' | 'forgot-password';
+type AuthView = 'signup' | 'signin' | 'forgot-password' | 'two-fa-setup' | 'two-fa-verify';
 
 interface AuthPageProps {
   onSignUpSuccess: () => void;
@@ -12,6 +19,8 @@ interface AuthPageProps {
   onSignInError: () => void;
   onForgotPasswordSuccess: () => void;
   onForgotPasswordError: () => void;
+  onTwoFaError: () => void;
+  onTwoFaSessionExpired: () => void;
 }
 
 export const AuthPage = ({
@@ -21,8 +30,31 @@ export const AuthPage = ({
   onSignInError,
   onForgotPasswordSuccess,
   onForgotPasswordError,
+  onTwoFaError,
+  onTwoFaSessionExpired,
 }: AuthPageProps) => {
   const [view, setView] = useState<AuthView>('signup');
+  const [tempToken, setTempToken] = useState<string | null>(null);
+
+  const handleSignInResponse = (response: SignInResponse) => {
+    if (isTwoFaChallenge(response)) {
+      setTempToken(response.tempToken);
+      setView(response.twoFactorEnabled ? 'two-fa-verify' : 'two-fa-setup');
+      return;
+    }
+    onSignInSuccess(response.token);
+  };
+
+  const handleTwoFaSuccess = (response: SignInSuccessResponse) => {
+    setTempToken(null);
+    onSignInSuccess(response.token);
+  };
+
+  const handleTwoFaSessionExpired = () => {
+    setTempToken(null);
+    setView('signin');
+    onTwoFaSessionExpired();
+  };
 
   if (view === 'signup') {
     return (
@@ -47,11 +79,33 @@ export const AuthPage = ({
     );
   }
 
+  if (view === 'two-fa-setup' && tempToken) {
+    return (
+      <TwoFaSetupForm
+        tempToken={tempToken}
+        onSuccess={handleTwoFaSuccess}
+        onError={onTwoFaError}
+        onSessionExpired={handleTwoFaSessionExpired}
+      />
+    );
+  }
+
+  if (view === 'two-fa-verify' && tempToken) {
+    return (
+      <TwoFaVerifyForm
+        tempToken={tempToken}
+        onSuccess={handleTwoFaSuccess}
+        onError={onTwoFaError}
+        onSessionExpired={handleTwoFaSessionExpired}
+      />
+    );
+  }
+
   return (
     <SignInForm
       onSwitchToSignUp={() => setView('signup')}
       onForgotPassword={() => setView('forgot-password')}
-      onSuccess={onSignInSuccess}
+      onSuccess={handleSignInResponse}
       onError={onSignInError}
     />
   );
