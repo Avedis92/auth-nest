@@ -42,6 +42,7 @@ The server uses raw SQL (`pg`) against PostgreSQL, so the schema below must be c
 ```sql
 CREATE TYPE user_role AS ENUM ('user', 'admin');
 CREATE TYPE session_status AS ENUM ('active', 'logged_out');
+CREATE TYPE session_sign_in_method AS ENUM ('email_and_password', 'oauth');
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,7 +61,8 @@ CREATE TABLE sessions (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     status session_status NOT NULL DEFAULT 'active',
     refresh_token TEXT NOT NULL,
-    expires_at TIMESTAMPTZ
+    expires_at TIMESTAMPTZ,
+    sign_in_method session_sign_in_method NOT NULL DEFAULT 'email_and_password'
 );
 
 CREATE TABLE reset_tokens (

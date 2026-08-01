@@ -1,13 +1,15 @@
-import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { Snackbar, Alert, Button } from '@mui/material';
 import { AuthPage } from './components/auth/AuthPage';
 import { ResetPasswordPage } from './components/auth/ResetPasswordPage';
+import { OAuthCallbackPage } from './components/auth/OAuthCallbackPage';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { ProtectedPage } from './components/protected/ProtectedPage';
 import { RequireAuth } from './components/routing/RequireAuth';
 import { AuthenticatedLayout } from './components/layout/AuthenticatedLayout';
-import { signOut } from './api/client';
+import { signOut, getSignInMethod, refreshAccessToken, ApiRequestError } from './api/client';
+import { JWT_TOKEN_ERROR_STATUS, type SignInMethod } from './types/auth';
 
 const ACCESS_TOKEN_STORAGE_KEY = 'accessToken';
 
@@ -19,6 +21,8 @@ const App = () => {
   );
   const [alert, setAlert] = useState<AlertState>(null);
   const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
+  const [signInMethod, setSignInMethod] = useState<SignInMethod | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const closeAlert = () => setAlert(null);
 
@@ -83,6 +87,46 @@ const App = () => {
     setAlert({ severity: 'error', message: 'Your session has expired. Please sign in again' });
   };
 
+  const handleOAuthError = () =>
+    setAlert({ severity: 'error', message: 'Failed to sign in with Google. Please try again' });
+
+  useEffect(() => {
+    if (searchParams.get('oauthError')) {
+      handleOAuthError();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      setSignInMethod(null);
+      return;
+    }
+    let cancelled = false;
+    const loadSignInMethod = async () => {
+      try {
+        const result = await getSignInMethod(accessToken);
+        if (!cancelled) setSignInMethod(result.signInMethod);
+      } catch (error) {
+        const code = error instanceof ApiRequestError ? error.body.code : undefined;
+        if (code !== JWT_TOKEN_ERROR_STATUS.TOKEN_EXPIRED) return;
+        try {
+          const refreshed = await refreshAccessToken();
+          if (cancelled) return;
+          handleTokenRefreshed(refreshed.token);
+          const retryResult = await getSignInMethod(refreshed.token);
+          if (!cancelled) setSignInMethod(retryResult.signInMethod);
+        } catch {
+          // leave signInMethod as-is; menu item just stays hidden until next successful fetch
+        }
+      }
+    };
+    loadSignInMethod();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
   const handleOpenChangePassword = () => setShowChangePasswordForm(true);
 
   const handleCloseChangePassword = () => setShowChangePasswordForm(false);
@@ -126,12 +170,17 @@ const App = () => {
             />
           }
         />
+        <Route
+          path="/oauth/callback"
+          element={<OAuthCallbackPage onSuccess={handleSignInSuccess} onError={handleOAuthError} />}
+        />
         <Route element={<RequireAuth isAuthenticated={accessToken !== null} />}>
           <Route
             element={
               <AuthenticatedLayout
                 onSignOut={handleSignOut}
                 onOpenChangePassword={handleOpenChangePassword}
+                signInMethod={signInMethod}
               />
             }
           >

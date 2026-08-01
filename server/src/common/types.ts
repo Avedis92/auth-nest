@@ -8,13 +8,19 @@ enum USERROLE {
 export interface CreateUserType {
   id: string;
   email: string;
-  password: string;
+  password: string | null;
   role: USERROLE;
   created_at: Date;
   updated_at: Date;
   is_user_registered_for_two_factor: boolean;
   two_factor_secret: string;
   is_two_factor_enabled: boolean;
+}
+
+export interface CreateUserInput {
+  email: string;
+  password: string | null;
+  isUserRegisteredFor2FA?: boolean;
 }
 
 export enum USERSTATUS {
@@ -28,6 +34,7 @@ export interface SessionType {
   status: USERSTATUS;
   refresh_token: string;
   expires_at: Date;
+  sign_in_method: SIGN_IN_METHOD;
 }
 
 export enum JWT_TOKEN_ERROR_STATUS {
@@ -56,4 +63,30 @@ export interface ResetTokenType {
   token: string;
   user_id: string;
   expires_at: Date;
+}
+
+export interface GoogleTokenApiResults {
+  id_token: string;
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface GoogleAuthProfile {
+  sub: string;
+  email: string;
+  email_verified: string;
+}
+
+export interface GoogleIdentityResult {
+  id: string;
+  user_id: string;
+  provider: string;
+  provider_id: string;
+}
+
+export type GoogleIdentityInput = Omit<GoogleIdentityResult, 'id'>;
+
+export enum SIGN_IN_METHOD {
+  EMAIL_AND_PASSWORD = 'email_and_password',
+  OAUTH = 'oauth',
 }

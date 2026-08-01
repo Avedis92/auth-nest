@@ -72,3 +72,14 @@ export interface TwoFaCodeCredentials {
 export const TWO_FA_ERROR_STATUS = {
   INVALID: 'Invalid_code',
 } as const;
+
+export const SIGN_IN_METHOD = {
+  EMAIL_AND_PASSWORD: 'email_and_password',
+  OAUTH: 'oauth',
+} as const;
+
+export type SignInMethod = (typeof SIGN_IN_METHOD)[keyof typeof SIGN_IN_METHOD];
+
+export interface SignInMethodResponse {
+  signInMethod: SignInMethod;
+}

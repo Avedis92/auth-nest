@@ -6,21 +6,27 @@ import {
 } from '@nestjs/common';
 import { PG_POOL } from 'src/database/database.module';
 import { Pool } from 'pg';
-import type { CreateUserDto } from './pipes/validate-users/create-user-schema';
 import * as bcrypt from 'bcrypt';
 import { handleDatabaseError } from 'src/error/helper';
-import { CreateUserType, USERS_ERROR_STATUS } from 'src/common/types';
+import {
+  CreateUserInput,
+  CreateUserType,
+  USERS_ERROR_STATUS,
+} from 'src/common/types';
 
 @Injectable()
 export class UsersRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async create(
-    userDto: CreateUserDto,
+    userDto: CreateUserInput,
   ): Promise<Pick<CreateUserType, 'id' | 'email'>> {
     try {
       const { email, password, isUserRegisteredFor2FA = false } = userDto;
-      const hashedPassword = await bcrypt.hash(password, 10);
+      let hashedPassword: string | null = null;
+      if (password) {
+        hashedPassword = await bcrypt.hash(password, 10);
+      }
       const result = await this.pool.query(
         `INSERT INTO users (email, password, is_user_registered_for_two_factor)
                 VALUES($1, $2, $3) RETURNING id, email`,

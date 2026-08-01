@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Box, Button, Stack, TextField, Typography, Link } from '@mui/material';
 import { validateAuthCredentials, type FieldErrors } from '../../validation/authSchema';
-import { signIn } from '../../api/client';
+import { API_URL, signIn } from '../../api/client';
 import type { SignInResponse } from '../../types/auth';
 
 interface SignInFormProps {
@@ -71,6 +71,9 @@ export const SignInForm = ({
         </Typography>
         <Button type="submit" variant="contained" disabled={submitting} fullWidth>
           Sign in
+        </Button>
+        <Button href={`${API_URL}/api/v1/auth/google`} variant="outlined" fullWidth>
+          Sign in with Google
         </Button>
         <Typography variant="body2" align="center">
           Don&apos;t have an account?{' '}

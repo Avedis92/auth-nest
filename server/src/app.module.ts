@@ -12,6 +12,7 @@ import { ProtectedModule } from './protected/protected.module';
 import { MailerModule } from './mailer/mailer.module';
 import { smtpConfig } from './config/smtp.config';
 import { TwoFaModule } from './two-fa/two-fa.module';
+import { googleOAuthConfig } from './config/googleOAuth.config';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { TwoFaModule } from './two-fa/two-fa.module';
     AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, smtpConfig],
+      load: [databaseConfig, jwtConfig, smtpConfig, googleOAuthConfig],
       validationSchema,
       envFilePath: '.env',
     }),

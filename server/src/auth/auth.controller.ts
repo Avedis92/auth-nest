@@ -8,6 +8,8 @@ import {
   Put,
   UseGuards,
   Req,
+  Get,
+  Query,
 } from '@nestjs/common';
 import { ValidateUsersPipe } from 'src/users/pipes/validate-users/validate-users.pipe';
 import { createUserSchema } from 'src/users/pipes/validate-users/create-user-schema';
@@ -30,10 +32,16 @@ import { ValidatePasswordPipe } from './pipes/validate-password/validate-passwor
 import { ValidateEmailPipe } from './pipes/validate-email/validate-email.pipe';
 import type { CreateEmailDto } from './pipes/validate-email/create-email-schema';
 import { createEmailSchema } from './pipes/validate-email/create-email-schema';
+import { GoogleService } from './google.service';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('api/v1/auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private googleService: GoogleService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('signup')
   @UsePipes(new ValidateUsersPipe(createUserSchema))
@@ -168,5 +176,46 @@ export class AuthController {
       message: 'Password successfully reset',
       success: true,
     };
+  }
+
+  @Get('google')
+  startSigningInWithGoogle(@Res() res: Response) {
+    const googleAuthZUrl = this.googleService.buildAuthorizationUrl();
+    res.redirect(googleAuthZUrl);
+  }
+
+  @Get('google/callback')
+  async handleGoogleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const frontendUrl = this.configService.get<string>('smtp.frontendUrl');
+    try {
+      const { refreshToken } = await this.googleService.handleGoogleCallback(
+        code,
+        state,
+        error,
+      );
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        maxAge: REFRESH_TOKEN_MAX_AGE_MS, // valid for 1 day
+      });
+      res.redirect(`${frontendUrl}/oauth/callback`);
+    } catch {
+      res.redirect(`${frontendUrl}/?oauthError=1`);
+    }
+  }
+
+  @Get('sign-in-method')
+  @UseGuards(JWTAuthGuard)
+  async getUserSignInMethod(@Cookie('refreshToken') refresh_Token?: string) {
+    // After finishing signing in, the user should know what sign in method they used (email and password or oAuth).
+    // The reason behind it is that on the navbar, the user's menu options should display the "change password" option
+    // only when the user signed in using their email and password.
+    const signInMethod =
+      await this.authService.getUserSignInMethod(refresh_Token);
+    return { signInMethod };
   }
 }

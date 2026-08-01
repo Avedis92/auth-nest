@@ -10,9 +10,10 @@ import type {
   ChangePasswordCredentials,
   ForgotPasswordCredentials,
   ResetPasswordCredentials,
+  SignInMethodResponse,
 } from "../types/auth";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export class ApiRequestError extends Error {
   status: number;
@@ -228,4 +229,22 @@ export const refreshAccessToken = async (): Promise<SignInSuccessResponse> => {
   }
 
   return data as SignInSuccessResponse;
+};
+
+export const getSignInMethod = async (
+  accessToken: string | null,
+): Promise<SignInMethodResponse> => {
+  const response = await fetch(`${API_URL}/api/v1/auth/sign-in-method`, {
+    method: "GET",
+    credentials: "include",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new ApiRequestError(response.status, data as ApiErrorResponse);
+  }
+
+  return data as SignInMethodResponse;
 };

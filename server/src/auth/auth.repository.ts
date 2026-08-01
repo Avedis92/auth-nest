@@ -20,6 +20,7 @@ import {
   CreateUserType,
   ResetTokenType,
   USERS_ERROR_STATUS,
+  SIGN_IN_METHOD,
 } from 'src/common/types';
 import type {
   CreatePasswordDto,
@@ -42,14 +43,15 @@ export class AuthRepository {
     session_id: string,
     refreshToken: string,
     user_id: string,
+    signInMethod = SIGN_IN_METHOD.EMAIL_AND_PASSWORD,
   ) {
     try {
       // generate a hashed content of the refresh token
       const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
       const expiredAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS);
       await this.pool.query(
-        `INSERT INTO sessions (id,user_id,refresh_token, expires_at) VALUES ($1, $2, $3, $4)`,
-        [session_id, user_id, hashedRefreshToken, expiredAt],
+        `INSERT INTO sessions (id,user_id,refresh_token, expires_at, sign_in_method) VALUES ($1, $2, $3, $4,$5)`,
+        [session_id, user_id, hashedRefreshToken, expiredAt, signInMethod],
       );
     } catch (error) {
       console.error(`Failed to generate session: ${(error as Error).message}`);
@@ -138,6 +140,13 @@ export class AuthRepository {
           code: USERS_ERROR_STATUS.NOT_FOUND,
         });
       const { oldPassword, password } = passwordDto;
+      if (!user.password) {
+        throw new BadRequestException({
+          statusCode: HttpStatus.BAD_REQUEST,
+          message:
+            'This account signed in with oAuth and has no password to change.',
+        });
+      }
       const oldPasswordMatch = await bcrypt.compare(oldPassword, user.password);
       if (!oldPasswordMatch)
         throw new UnauthorizedException({

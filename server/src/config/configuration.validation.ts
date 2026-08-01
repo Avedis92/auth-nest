@@ -19,4 +19,12 @@ export const validationSchema = Joi.object({
   SMTP_USER: Joi.string().required(),
   SMTP_PASS: Joi.string().required(),
   FRONTEND_URL: Joi.string().required(),
+
+  // Google OAuth Credentials
+  GOOGLE_CLIENT_ID: Joi.string().required(),
+  GOOGLE_CLIENT_SECRET: Joi.string().required(),
+  GOOGLE_REDIRECT_URI: Joi.string().required(),
+  GOOGLE_AUTHORIZATION_ENDPOINT: Joi.string().required(),
+  GOOGLE_TOKEN_ENDPOINT: Joi.string().required(),
+  GOOGLE_USER_INFO_ENDPOINT: Joi.string().required(),
 });

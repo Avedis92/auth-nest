@@ -1,12 +1,14 @@
 import { useState, type MouseEvent } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Avatar, Menu, MenuItem } from '@mui/material';
+import { SIGN_IN_METHOD, type SignInMethod } from '../../types/auth';
 
 interface NavbarProps {
   onSignOut: () => void;
   onOpenChangePassword: () => void;
+  signInMethod: SignInMethod | null;
 }
 
-export const Navbar = ({ onSignOut, onOpenChangePassword }: NavbarProps) => {
+export const Navbar = ({ onSignOut, onOpenChangePassword, signInMethod }: NavbarProps) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const menuOpen = Boolean(anchorEl);
 
@@ -47,7 +49,9 @@ export const Navbar = ({ onSignOut, onOpenChangePassword }: NavbarProps) => {
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         >
           <MenuItem onClick={handleSignOut}>Sign out</MenuItem>
-          <MenuItem onClick={handleOpenChangePassword}>Change password</MenuItem>
+          {signInMethod === SIGN_IN_METHOD.EMAIL_AND_PASSWORD && (
+            <MenuItem onClick={handleOpenChangePassword}>Change password</MenuItem>
+          )}
         </Menu>
       </Toolbar>
     </AppBar>

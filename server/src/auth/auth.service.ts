@@ -11,6 +11,7 @@ import {
   JWTPayloadType,
   JWT_TOKEN_ERROR_STATUS,
   CreateUserType,
+  SIGN_IN_METHOD,
 } from 'src/common/types';
 import { REFRESH_TOKEN_MAX_AGE_MS } from 'src/common/constant';
 import type {
@@ -43,7 +44,7 @@ export class AuthService {
       expiresIn: this.configService.get('jwt.jwtRefreshTokenExpire'),
     });
   }
-  private generateBothAccessAndRefreshToken(payload: JWTPayloadType) {
+  generateBothAccessAndRefreshToken(payload: JWTPayloadType) {
     const accessToken = this.generateAccessToken(payload);
     const refreshToken = this.generateRefreshToken(payload);
     return { accessToken, refreshToken };
@@ -52,7 +53,10 @@ export class AuthService {
   async validateIfUserExists(userDto: CreateUserDto) {
     const { email, password } = userDto;
     const user = await this.userService.findByEmail(email);
-    const passwordsMatches = await bcrypt.compare(password, user.password);
+    const passwordsMatches = await bcrypt.compare(
+      password,
+      user.password as string,
+    );
     if (!passwordsMatches) {
       throw new UnauthorizedException({
         statusCode: HttpStatus.UNAUTHORIZED,
@@ -191,5 +195,22 @@ export class AuthService {
 
   async resetPassword(resetDto: ResetPasswordDto) {
     await this.authRepository.resetPassword(resetDto);
+  }
+
+  async getUserSignInMethod(refreshToken?: string): Promise<SIGN_IN_METHOD> {
+    // Check first if the refresh token was send from the browser.
+    // If no than throw an unauthorize error.
+    // If yes, extract the session id from the refresh token, and used to get the session info
+    // and then send only the sign in method to the frontend for consumption
+    if (!refreshToken) {
+      throw new UnauthorizedException({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'Refresh token not found',
+        code: JWT_TOKEN_ERROR_STATUS.TOKEN_MISSING,
+      });
+    }
+    const { sid } = await this.extractRefreshToken(refreshToken);
+    const sessionInfo = await this.authRepository.getBySessionId(sid);
+    return sessionInfo.sign_in_method;
   }
 }
