@@ -13,6 +13,8 @@ import { MailerModule } from './mailer/mailer.module';
 import { smtpConfig } from './config/smtp.config';
 import { TwoFaModule } from './two-fa/two-fa.module';
 import { googleOAuthConfig } from './config/googleOAuth.config';
+import { JobsModule } from './jobs/jobs.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { googleOAuthConfig } from './config/googleOAuth.config';
     ProtectedModule,
     MailerModule,
     TwoFaModule,
+    JobsModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
