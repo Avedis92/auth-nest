@@ -181,20 +181,19 @@ const App = () => {
                 onSignOut={handleSignOut}
                 onOpenChangePassword={handleOpenChangePassword}
                 signInMethod={signInMethod}
+                accessToken={accessToken}
+                showChangePasswordForm={showChangePasswordForm}
+                onCloseChangePassword={handleCloseChangePassword}
+                onTokenRefreshed={handleTokenRefreshed}
+                onChangePasswordSuccess={handleChangePasswordSuccess}
+                onChangePasswordError={handleChangePasswordError}
               />
             }
           >
             <Route
               path="/dashboard"
               element={
-                <DashboardPage
-                  accessToken={accessToken}
-                  showChangePasswordForm={showChangePasswordForm}
-                  onCloseChangePassword={handleCloseChangePassword}
-                  onTokenRefreshed={handleTokenRefreshed}
-                  onChangePasswordSuccess={handleChangePasswordSuccess}
-                  onChangePasswordError={handleChangePasswordError}
-                />
+                <DashboardPage />
               }
             />
             <Route
