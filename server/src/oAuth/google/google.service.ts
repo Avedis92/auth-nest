@@ -5,12 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PkceService } from './pkce.service';
 import {
   generateCodeVerifier,
   generateCodeChallenge,
   generateState,
-} from './utils/pkce.utils';
+} from 'src/utils/pkce.utils';
 import axios from 'axios';
 import * as crypto from 'crypto';
 import {
@@ -20,10 +19,11 @@ import {
   JWTPayloadType,
   SIGN_IN_METHOD,
 } from 'src/common/types';
-import { GoogleRepository } from './google.repository';
 import { UsersService } from 'src/users/users.service';
-import { AuthService } from './auth.service';
-import { AuthRepository } from './auth.repository';
+import { PkceService } from './pkce.service';
+import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
+import { IdentitiesService } from 'src/identities/identities.service';
+import { SessionService } from 'src/session/session.service';
 
 @Injectable()
 export class GoogleService {
@@ -32,11 +32,11 @@ export class GoogleService {
   private readonly redirectUri: string;
   constructor(
     private configService: ConfigService,
-    private pkceService: PkceService,
-    private googleRepository: GoogleRepository,
     private userService: UsersService,
-    private authService: AuthService,
-    private authRepository: AuthRepository,
+    private jwtService: CustomJwtService,
+    private identitiesService: IdentitiesService,
+    private sessionService: SessionService,
+    private pkceService: PkceService,
   ) {
     this.clientId = this.configService.get('google.googleClientId') as string;
     this.redirectUri = this.configService.get(
@@ -53,11 +53,14 @@ export class GoogleService {
     ) as string;
 
     const codeVerifier = generateCodeVerifier();
+
     const codeChallenge = generateCodeChallenge(codeVerifier);
+
     const state = generateState();
 
     // save the state into the store
     this.pkceService.save(state, codeVerifier);
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
@@ -106,9 +109,11 @@ export class GoogleService {
       googleUserInfoBaseUrl,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
-    const identity = await this.googleRepository.findGoogleIdentityByProviderId(
-      profile.sub,
-    );
+    const identity =
+      await this.identitiesService.findIdentityByProviderAndProviderId(
+        profile.sub,
+        'google',
+      );
 
     // If user already have logged in, then
     if (identity) {
@@ -132,7 +137,7 @@ export class GoogleService {
     }
 
     // Either way, link this Google identity to the user
-    await this.googleRepository.createGoogleIdentity({
+    await this.identitiesService.createIdentity({
       user_id: user.id,
       provider: 'google',
       provider_id: profile.sub,
@@ -157,23 +162,29 @@ export class GoogleService {
     }
 
     const codeVerifier = this.pkceService.consume(state);
+
     if (!codeVerifier) {
       throw new BadRequestException({
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Invalid or expired state/PKCE session',
       });
     }
+
     const { access_token } = await this.exchangeCodeWithTokens(
       code,
       codeVerifier,
     );
+
     const user = await this.retrieveGoogleProfile(access_token);
 
     const session_id = crypto.randomUUID();
+
     const payload: JWTPayloadType = { sid: session_id, uid: user.id };
+
     const { accessToken, refreshToken } =
-      this.authService.generateBothAccessAndRefreshToken(payload);
-    await this.authRepository.createSession(
+      this.jwtService.generateBothAccessAndRefreshToken(payload);
+
+    await this.sessionService.createSession(
       session_id,
       refreshToken,
       user.id,

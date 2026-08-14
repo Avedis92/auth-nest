@@ -1,20 +1,21 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PG_POOL } from 'src/database/database.module';
 import { Pool } from 'pg';
-import { GoogleIdentityResult, GoogleIdentityInput } from 'src/common/types';
 import { handleDatabaseError } from 'src/error/helper';
+import { IdentityResult, IdentityInput } from 'src/common/types';
 
 @Injectable()
-export class GoogleRepository {
+export class IdentitiesRepository {
   constructor(@Inject(PG_POOL) private pool: Pool) {}
 
-  async findGoogleIdentityByProviderId(
+  async findIdentityByProviderAndProviderId(
     providerUserId: string,
-  ): Promise<GoogleIdentityResult | undefined> {
+    provider: string,
+  ): Promise<IdentityResult | undefined> {
     try {
       const result = await this.pool.query(
         `SELECT * FROM identities WHERE provider=$1 AND provider_id=$2`,
-        ['google', providerUserId],
+        [provider, providerUserId],
       );
       return result.rows[0];
     } catch (error) {
@@ -22,12 +23,12 @@ export class GoogleRepository {
       handleDatabaseError(error);
     }
   }
-  async createGoogleIdentity(googleIdentity: GoogleIdentityInput) {
+  async createIdentity(Identity: IdentityInput) {
     try {
-      const { user_id, provider, provider_id } = googleIdentity;
+      const { user_id, provider, provider_id } = Identity;
       await this.pool.query(
         `INSERT INTO identities (user_id,provider,provider_id)
-            VALUES ($1,$2,$3)`,
+                VALUES ($1,$2,$3)`,
         [user_id, provider, provider_id],
       );
     } catch (error) {

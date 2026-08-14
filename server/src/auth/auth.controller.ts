@@ -32,7 +32,7 @@ import { ValidatePasswordPipe } from './pipes/validate-password/validate-passwor
 import { ValidateEmailPipe } from './pipes/validate-email/validate-email.pipe';
 import type { CreateEmailDto } from './pipes/validate-email/create-email-schema';
 import { createEmailSchema } from './pipes/validate-email/create-email-schema';
-import { GoogleService } from './google.service';
+import { GoogleService } from 'src/oAuth/google/google.service';
 import { ConfigService } from '@nestjs/config';
 
 @Controller('api/v1/auth')
@@ -79,13 +79,9 @@ export class AuthController {
     // 10- When sending the tokens also send info if user is registered for 2FA and if their 2FA is already enabled or not.
     // 11- If the user is registered for 2FA but their 2FA is still not enabled, the frontend should send register request,
     // so that the user register the app with the authenticator app.
-    const user = await this.authService.validateIfUserExists(userDto);
+    const user = await this.authService.validateUserCredentials(userDto);
     if (user.is_user_registered_for_two_factor) {
-      return {
-        twoFactorEnabled: user.is_two_factor_enabled,
-        userRegisteredForTwoFactor: user.is_user_registered_for_two_factor,
-        tempToken: this.authService.generateAccessToken({ uid: user.id }, true),
-      };
+      return this.authService.generateTwoFAResponse(user);
     }
     const { accessToken, refreshToken } = await this.authService.singIn(user);
     res.cookie('refreshToken', refreshToken, {

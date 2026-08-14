@@ -6,20 +6,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import {
-  JWT_TOKEN_ERROR_STATUS,
-  JWTPayloadType,
-  ValidUserRequestType,
-} from 'src/common/types';
+import { JWT_TOKEN_ERROR_STATUS, ValidUserRequestType } from 'src/common/types';
 import { UsersService } from 'src/users/users.service';
+import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
 
 @Injectable()
 export class JWTAuthGuard implements CanActivate {
   constructor(
-    private config: ConfigService,
-    private jwtService: JwtService,
+    private jwtService: CustomJwtService,
     private userService: UsersService,
   ) {}
   private extractTokenFromHeader(request: Request) {
@@ -48,40 +42,13 @@ export class JWTAuthGuard implements CanActivate {
         code: JWT_TOKEN_ERROR_STATUS.TOKEN_MISSING,
       });
     } else {
-      try {
-        const payload: JWTPayloadType = await this.jwtService.verifyAsync(
-          accessToken,
-          {
-            secret: this.config.get('jwt.jwtAccessTokenSecret'),
-          },
-        );
-        const foundUser = await this.userService.findById(payload.uid);
-        if (!foundUser) {
-          throw new UnauthorizedException({
-            statusCode: HttpStatus.UNAUTHORIZED,
-            message: 'User associated with this token no longer exists',
-            code: JWT_TOKEN_ERROR_STATUS.TOKEN_INVALID,
-          });
-        }
-        request.userId = payload.uid;
-        return true;
-      } catch (error) {
-        // 1. Check if the error is specifically due to expiration
-        if ((error as Error).name === 'TokenExpiredError') {
-          throw new UnauthorizedException({
-            statusCode: HttpStatus.UNAUTHORIZED,
-            message: 'Access token has expired',
-            code: JWT_TOKEN_ERROR_STATUS.TOKEN_EXPIRED,
-          });
-        }
-
-        // 2. Handle tampered, malformed, or invalid signatures
-        throw new UnauthorizedException({
-          statusCode: HttpStatus.UNAUTHORIZED,
-          message: 'Token is invalid or tampered',
-          code: JWT_TOKEN_ERROR_STATUS.TOKEN_INVALID,
-        });
-      }
+      const payload = await this.jwtService.extractTokenInfo(
+        'jwt.jwtAccessTokenSecret',
+        accessToken,
+      );
+      await this.userService.findById(payload.uid);
+      request.userId = payload.uid;
+      return true;
     }
   }
 }

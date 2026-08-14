@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { RepositoryJobs } from './repository.jobs';
+import { SessionService } from 'src/session/session.service';
+import { USERSTATUS } from 'src/common/types';
 
 @Injectable()
 export class JobsService {
-  constructor(private jobsRepository: RepositoryJobs) {}
+  constructor(private sessionService: SessionService) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async deleteLoggedOutSessions() {
-    await this.jobsRepository.deleteLoggedOutSessions();
+    await this.sessionService.deleteSessionsByStatus(USERSTATUS.LOGGED_OUT);
   }
 }

@@ -27,4 +27,7 @@ export const validationSchema = Joi.object({
   GOOGLE_AUTHORIZATION_ENDPOINT: Joi.string().required(),
   GOOGLE_TOKEN_ENDPOINT: Joi.string().required(),
   GOOGLE_USER_INFO_ENDPOINT: Joi.string().required(),
+
+  // Encryption key
+  ENCRYPTION_KEY: Joi.string().required(),
 });

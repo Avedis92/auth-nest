@@ -15,6 +15,12 @@ import { TwoFaModule } from './two-fa/two-fa.module';
 import { googleOAuthConfig } from './config/googleOAuth.config';
 import { JobsModule } from './jobs/jobs.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SessionModule } from './session/session.module';
+import { ResetTokensModule } from './reset-tokens/reset-tokens.module';
+import { CustomJwtModule } from './custom-jwt/custom-jwt.module';
+import { EncryptionModule } from './encryption/encryption.module';
+import { encryptionConfig } from './config/encryption.config';
+import { IdentitiesModule } from './identities/identities.module';
 
 @Module({
   imports: [
@@ -23,7 +29,13 @@ import { ScheduleModule } from '@nestjs/schedule';
     AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, smtpConfig, googleOAuthConfig],
+      load: [
+        databaseConfig,
+        jwtConfig,
+        smtpConfig,
+        googleOAuthConfig,
+        encryptionConfig,
+      ],
       validationSchema,
       envFilePath: '.env',
     }),
@@ -32,6 +44,11 @@ import { ScheduleModule } from '@nestjs/schedule';
     TwoFaModule,
     JobsModule,
     ScheduleModule.forRoot(),
+    SessionModule,
+    ResetTokensModule,
+    CustomJwtModule,
+    EncryptionModule,
+    IdentitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

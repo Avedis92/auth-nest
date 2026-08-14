@@ -4,14 +4,12 @@ import { authenticator } from 'otplib';
 import { toDataURL } from 'qrcode';
 import type { Create2FaCodeDto } from './pipes/validate-code/validate-2fa-code';
 import { TWO_FA_ERROR_STATUS } from 'src/common/types';
-import { TwoFaRepository } from './two-fa.repository';
 import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class TwoFaService {
   constructor(
     private userService: UsersService,
-    private twoFARepository: TwoFaRepository,
     private authService: AuthService,
   ) {}
 
@@ -36,9 +34,13 @@ export class TwoFaService {
     // 3- use the secret to generate an otp url that will be send to the authenticator app to extract the secret from it
     // 4- Generate the qr code that will be displayed to the user on the screen
     const { email } = await this.userService.findById(userId);
+
     const { secret, otpUrl } = this.generateOtpSecret(email);
+
     await this.userService.setTowFactorSecret(email, secret);
+
     const qrCode = await this.generateQrCodeDataUrl(otpUrl);
+
     return qrCode;
   }
 
@@ -57,9 +59,10 @@ export class TwoFaService {
       });
     }
     //If it is valid, then update the user's row and enable the 2FA for them
-    await this.twoFARepository.enableTwoFactorAuth(userId);
+    await this.userService.enableTwoFactorAuth(userId);
     // generate the access and refresh token and send them to the user so they're signed in immediately
     const { accessToken, refreshToken } = await this.authService.singIn(user);
+
     return { accessToken, refreshToken };
   }
 
@@ -79,6 +82,7 @@ export class TwoFaService {
     }
     // if it is valid, then generate the access and refresh token and send them to the user
     const { accessToken, refreshToken } = await this.authService.singIn(user);
+
     return { accessToken, refreshToken };
   }
 }

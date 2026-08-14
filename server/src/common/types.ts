@@ -60,9 +60,8 @@ export interface JWTPayloadType {
 export type ValidUserRequestType = Request & { userId: string };
 
 export interface ResetTokenType {
+  id: string;
   token: string;
-  user_id: string;
-  expires_at: Date;
 }
 
 export interface GoogleTokenApiResults {
@@ -77,16 +76,29 @@ export interface GoogleAuthProfile {
   email_verified: string;
 }
 
-export interface GoogleIdentityResult {
+export interface IdentityResult {
   id: string;
   user_id: string;
   provider: string;
   provider_id: string;
 }
-
-export type GoogleIdentityInput = Omit<GoogleIdentityResult, 'id'>;
+export type IdentityInput = Omit<IdentityResult, 'id'>;
 
 export enum SIGN_IN_METHOD {
   EMAIL_AND_PASSWORD = 'email_and_password',
   OAUTH = 'oauth',
+}
+
+export enum Tables {
+  USERS = 'users',
+  SESSIONS = 'sessions',
+  RESET_TOKENS = 'reset_tokens',
+  IDENTITIES = 'identities',
+}
+
+export enum DATA_FORMAT {
+  BASE64 = 'base64',
+  BASE64URL = 'base64url',
+  UTF8 = 'utf8',
+  HEX = 'hex',
 }

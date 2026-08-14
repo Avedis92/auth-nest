@@ -1,11 +1,15 @@
-import { Injectable, UnauthorizedException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import type { CreateUserDto } from 'src/users/pipes/validate-users/create-user-schema';
-import { JwtService } from '@nestjs/jwt';
+import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
+import { SessionService } from 'src/session/session.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { AuthRepository } from './auth.repository';
-import * as bcrypt from 'bcrypt';
 import {
   USERSTATUS,
   JWTPayloadType,
@@ -19,83 +23,40 @@ import type {
   ResetPasswordDto,
 } from './pipes/validate-password/create-password-schema';
 import type { CreateEmailDto } from './pipes/validate-email/create-email-schema';
-
+import {
+  verifyAHashedElement,
+  hashAnElement,
+  hashTokenForLookup,
+} from 'src/common/helpers/hash';
+import { MailerService } from 'src/mailer/mailer.service';
+import { EncryptionService } from 'src/encryption/encryption.service';
+import { ResetTokensService } from 'src/reset-tokens/reset-tokens.service';
 @Injectable()
 export class AuthService {
   constructor(
     private userService: UsersService,
-    private jwtService: JwtService,
+    private jwtService: CustomJwtService,
     private configService: ConfigService,
-    private authRepository: AuthRepository,
+    private sessionService: SessionService,
+    private mailService: MailerService,
+    private encryptionService: EncryptionService,
+    private resetTokensService: ResetTokensService,
   ) {}
-
-  generateAccessToken(payload: Partial<JWTPayloadType>, temporary = false) {
-    return this.jwtService.sign(payload, {
-      secret: this.configService.get('jwt.jwtAccessTokenSecret'),
-      expiresIn: temporary
-        ? this.configService.get('jwt.jwtTempAccessTokenExpire')
-        : this.configService.get('jwt.jwtAccessTokenExpire'),
-    });
-  }
-
-  private generateRefreshToken(payload: JWTPayloadType) {
-    return this.jwtService.sign(payload, {
-      secret: this.configService.get('jwt.jwtRefreshTokenSecret'),
-      expiresIn: this.configService.get('jwt.jwtRefreshTokenExpire'),
-    });
-  }
-  generateBothAccessAndRefreshToken(payload: JWTPayloadType) {
-    const accessToken = this.generateAccessToken(payload);
-    const refreshToken = this.generateRefreshToken(payload);
-    return { accessToken, refreshToken };
-  }
-
-  async validateIfUserExists(userDto: CreateUserDto) {
-    const { email, password } = userDto;
-    const user = await this.userService.findByEmail(email);
-    const passwordsMatches = await bcrypt.compare(
-      password,
-      user.password as string,
-    );
-    if (!passwordsMatches) {
-      throw new UnauthorizedException({
-        statusCode: HttpStatus.UNAUTHORIZED,
-        message: `The password that is send for the user ${user.id} does not match the password in the database`,
-      });
-    }
-    return user;
-  }
-
-  private async extractRefreshToken(refreshToken?: string) {
-    try {
-      if (refreshToken) {
-        const payload: JWTPayloadType = await this.jwtService.verifyAsync(
-          refreshToken,
-          {
-            secret: this.configService.get('jwt.jwtRefreshTokenSecret'),
-          },
-        );
-        return payload;
-      }
-      throw new UnauthorizedException({
-        statusCode: HttpStatus.UNAUTHORIZED,
-        message: 'Session is expired. User should login again',
-        code: JWT_TOKEN_ERROR_STATUS.TOKEN_MISSING,
-      });
-    } catch (error) {
-      if ((error as Error).name === 'JsonWebTokenError') {
-        throw new UnauthorizedException({
-          statusCode: HttpStatus.UNAUTHORIZED,
-          message: 'Token is invalid or tampered',
-          code: JWT_TOKEN_ERROR_STATUS.TOKEN_INVALID,
-        });
-      }
-      throw error;
-    }
-  }
 
   async signUp(userDto: CreateUserDto) {
     await this.userService.create(userDto);
+  }
+
+  async validateUserCredentials(userDto: CreateUserDto) {
+    const user = await this.userService.validateUserCredentials(userDto);
+    return user;
+  }
+  generateTwoFAResponse(user: CreateUserType) {
+    return {
+      twoFactorEnabled: user.is_two_factor_enabled,
+      userRegisteredForTwoFactor: user.is_user_registered_for_two_factor,
+      tempToken: this.jwtService.generateAccessToken({ uid: user.id }, true),
+    };
   }
 
   async singIn(user: CreateUserType) {
@@ -106,9 +67,10 @@ export class AuthService {
     const payload: JWTPayloadType = { sid: session_id, uid: id };
 
     const { accessToken, refreshToken } =
-      this.generateBothAccessAndRefreshToken(payload);
+      this.jwtService.generateBothAccessAndRefreshToken(payload);
 
-    await this.authRepository.createSession(session_id, refreshToken, id);
+    await this.sessionService.createSession(session_id, refreshToken, id);
+
     return {
       accessToken,
       refreshToken,
@@ -119,10 +81,14 @@ export class AuthService {
     // We have 2 scenarios in this situation:
     // If the user has a non expired cookie, then we can extract the refresh token, and then the session id and update the session expiration from there.
     // If the user has an expired cookie, means that no cookie is sent to the server, which mean this specific session is also expired automatically.
-    const payload = await this.extractRefreshToken(refreshToken);
+    const payload = await this.jwtService.extractTokenInfo(
+      'jwt.jwtRefreshTokenSecret',
+      refreshToken,
+    );
+
     const expiredAt = new Date(Date.now());
     // Use session id to update the session's expiry date
-    await this.authRepository.updateSession(
+    await this.sessionService.updateSession(
       { id: payload.sid },
       {
         expires_at: expiredAt,
@@ -146,14 +112,20 @@ export class AuthService {
     // If the session info is valid and refresh token matches session's token
     // Then generate new access and refresh tokens, update the refresh token and session expiration date with the new values.
     // If the session info is valid but tokens do not match,then make user sign out and force them to sign in again.
-    const payload = await this.extractRefreshToken(refresh_Token);
-    const sessionInfo = await this.authRepository.getBySessionId(payload.sid);
-    const tokensMatch = await bcrypt.compare(
+    const payload = await this.jwtService.extractTokenInfo(
+      'jwt.jwtRefreshTokenSecret',
+      refresh_Token,
+    );
+
+    const sessionInfo = await this.sessionService.getSessionById(payload.sid);
+
+    const tokensMatch = await verifyAHashedElement(
       refresh_Token,
       sessionInfo.refresh_token,
     );
     // 2. Session exists but is already logged out and before a script removes this session from the table.
     const isExpired = sessionInfo.expires_at < new Date();
+
     if (sessionInfo.status === USERSTATUS.LOGGED_OUT || isExpired) {
       throw new UnauthorizedException({
         statusCode: HttpStatus.UNAUTHORIZED,
@@ -164,37 +136,140 @@ export class AuthService {
     // 3. Session is "active" but token doesn't match -> likely reuse of an old/stolen token.
     // Revoke *everything* for this user, not just this one session.
     if (!tokensMatch) {
-      await this.authRepository.revokeAllSessionsForUser(sessionInfo.user_id);
+      await this.sessionService.revokeAllSessionsForUser(sessionInfo.user_id);
+
       throw new UnauthorizedException({
         statusCode: HttpStatus.UNAUTHORIZED,
         message: 'Refresh token reuse detected, please sign in again',
         code: JWT_TOKEN_ERROR_STATUS.TOKEN_REUSE_DETECTED,
       });
     }
+
     const newPayload: JWTPayloadType = { sid: payload.sid, uid: payload.uid };
+
     const { accessToken, refreshToken } =
-      this.generateBothAccessAndRefreshToken(newPayload);
+      this.jwtService.generateBothAccessAndRefreshToken(newPayload);
+
     const expiredAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS);
-    const newHashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-    await this.authRepository.updateSession(
+
+    const newHashedRefreshToken = await hashAnElement(refreshToken);
+
+    await this.sessionService.updateSession(
       { id: payload.sid },
       {
         expires_at: expiredAt,
         refresh_token: newHashedRefreshToken,
       },
     );
+
     return { accessToken, refreshToken };
   }
+
   async changePassword(userId: string, passwordDto: CreatePasswordDto) {
-    await this.authRepository.changePassword(userId, passwordDto);
+    const foundUser = await this.userService.findById(userId);
+
+    const { oldPassword, password } = passwordDto;
+
+    if (!foundUser.password) {
+      throw new BadRequestException({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message:
+          'This account signed in with oAuth and has no password to change.',
+      });
+    }
+
+    const oldPasswordMatch = await verifyAHashedElement(
+      oldPassword,
+      foundUser.password,
+    );
+
+    if (!oldPasswordMatch)
+      throw new UnauthorizedException({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'Wrong password',
+      });
+
+    const hashedPassword = await hashAnElement(password);
+
+    await this.userService.updateUserInfo(
+      { id: userId },
+      { password: hashedPassword, updated_at: new Date() },
+    );
   }
 
   async forgotPassword(emailDto: CreateEmailDto) {
-    await this.authRepository.forgotPassword(emailDto);
+    // 1- check if a user with that mail exists.
+    // 2- If it doesn't exist throw an error
+    // 3- if yes then generate a jwt token
+    // 4- encrypt that token
+    // 5- Add that token inside the link that will be send as an email to the user
+    // 6- Hash the token
+    // 7- Add that hashed token to the reset tokens table
+    const { email } = emailDto;
+
+    const foundUser = await this.userService.findByEmail(email);
+
+    const token = this.jwtService.generateAccessToken({ uid: foundUser.id });
+
+    const encryptedToken = this.encryptionService.encrypt(token);
+
+    const hashedToken = hashTokenForLookup(encryptedToken);
+
+    await this.resetTokensService.createResetToken(hashedToken);
+
+    const domainUrl = this.configService.get('smtp.frontendUrl') as string;
+
+    const resetLink = `${domainUrl}/reset-password?token=${encryptedToken}`;
+
+    await this.mailService.sendEmail(email, resetLink);
   }
 
   async resetPassword(resetDto: ResetPasswordDto) {
-    await this.authRepository.resetPassword(resetDto);
+    // In order to reset password, the following must be done:
+    // 1- Extract the encrypted reset token from the reset dto.
+    // 2- hash the encrypted reset token and verify if it exists or not
+    // 3- If it does not exist, send a bad request error to the user so that they can try again.
+    // 4- If it exists, then decrypt the token and try to extract user info.
+    // 5- If the jwt token is expired then the user should try to reset again and it should delete that token from the table
+    // 6- if the token is still valid, then update the user password and then delete the token afterwards from the records.
+    let resetTokenId = '';
+    try {
+      const { password, resetToken: encryptedToken } = resetDto;
+
+      const encryptedHashedToken = hashTokenForLookup(encryptedToken);
+
+      const tokenInfo =
+        await this.resetTokensService.findToken(encryptedHashedToken);
+
+      resetTokenId = tokenInfo.id;
+
+      const decryptedToken = this.encryptionService.decrypt(encryptedToken);
+
+      const jwtPayload = await this.jwtService.extractTokenInfo(
+        'jwt.jwtAccessTokenSecret',
+        decryptedToken,
+      );
+
+      const hashedPassword = await hashAnElement(password);
+
+      await this.userService.updateUserInfo(
+        { id: jwtPayload.uid },
+        { password: hashedPassword, updated_at: new Date() },
+      );
+
+      await this.resetTokensService.deleteTokenById(tokenInfo.id);
+    } catch (error) {
+      // if the token was expired, delete the token from the table anyways
+      // else rethrow
+      if (
+        error instanceof UnauthorizedException &&
+        // @ts-expect-error expired jwt tokens always throw error with code property
+        error?.code === JWT_TOKEN_ERROR_STATUS.TOKEN_EXPIRED
+      ) {
+        await this.resetTokensService.deleteTokenById(resetTokenId);
+      }
+      throw error;
+    }
   }
 
   async getUserSignInMethod(refreshToken?: string): Promise<SIGN_IN_METHOD> {
@@ -209,8 +284,13 @@ export class AuthService {
         code: JWT_TOKEN_ERROR_STATUS.TOKEN_MISSING,
       });
     }
-    const { sid } = await this.extractRefreshToken(refreshToken);
-    const sessionInfo = await this.authRepository.getBySessionId(sid);
+    const { sid } = await this.jwtService.extractTokenInfo(
+      'jwt.jwtRefreshTokenSecret',
+      refreshToken,
+    );
+
+    const sessionInfo = await this.sessionService.getSessionById(sid);
+
     return sessionInfo.sign_in_method;
   }
 }

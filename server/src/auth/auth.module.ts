@@ -2,25 +2,26 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from 'src/users/users.module';
-import { JwtModule } from '@nestjs/jwt';
-import { AuthRepository } from './auth.repository';
 import { JWTAuthGuard } from './guards/auth/auth.guard';
 import { MailerModule } from 'src/mailer/mailer.module';
-import { GoogleService } from './google.service';
-import { PkceService } from './pkce.service';
-import { GoogleRepository } from './google.repository';
+import { SessionModule } from 'src/session/session.module';
+import { CustomJwtModule } from 'src/custom-jwt/custom-jwt.module';
+import { EncryptionModule } from 'src/encryption/encryption.module';
+import { ResetTokensModule } from 'src/reset-tokens/reset-tokens.module';
+import { GoogleModule } from 'src/oAuth/google/google.module';
 
 @Module({
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    AuthRepository,
-    JWTAuthGuard,
-    GoogleService,
-    PkceService,
-    GoogleRepository,
+  providers: [AuthService, JWTAuthGuard],
+  imports: [
+    UsersModule,
+    MailerModule,
+    CustomJwtModule,
+    SessionModule,
+    EncryptionModule,
+    ResetTokensModule,
+    GoogleModule,
   ],
-  imports: [UsersModule, JwtModule.register({}), MailerModule],
-  exports: [AuthService, AuthRepository],
+  exports: [AuthService],
 })
 export class AuthModule {}
