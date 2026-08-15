@@ -70,7 +70,17 @@ CREATE TABLE reset_tokens (
     user_id UUID REFERENCES users(id),
     expires_at TIMESTAMPTZ
 );
+
+CREATE TABLE identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(50) NOT NULL,
+    provider_id VARCHAR(255) NOT NULL,
+    UNIQUE (provider, provider_id)
+);
 ```
+
+`identities` links a user to an external oAuth provider account (e.g. Google) — `provider` is the provider name (`google`) and `provider_id` is that provider's unique subject/user id (`sub`). A user signs in via oAuth by matching on `(provider, provider_id)`; if no identity exists, one is created and linked to a `users` row (existing or newly created).
 
 `gen_random_uuid()` requires the `pgcrypto` extension (`CREATE EXTENSION IF NOT EXISTS pgcrypto;`) on PostgreSQL versions before 13, or `uuid-ossp` as an alternative — PostgreSQL 13+ has `gen_random_uuid()` built in.
 

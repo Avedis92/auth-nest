@@ -5,14 +5,20 @@ import {
   SessionType,
   Tables,
   USERSTATUS,
+  JWTPayloadType,
 } from 'src/common/types';
 import { REFRESH_TOKEN_MAX_AGE_MS } from 'src/common/constant';
 import { SessionRepository } from './session.repository';
 import { generateUpdateQuery } from 'src/common/queries/update';
+import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class SessionService {
-  constructor(private sessionRepository: SessionRepository) {}
+  constructor(
+    private sessionRepository: SessionRepository,
+    private jwtService: CustomJwtService,
+  ) {}
 
   async createSession(
     session_id: string,
@@ -72,5 +78,21 @@ export class SessionService {
         expires_at: new Date(Date.now()),
       },
     );
+  }
+  async issueTokenAndSession(userId: string, signInMethod?: SIGN_IN_METHOD) {
+    // generate a new session id for the newly signed in user
+    const session_id = crypto.randomUUID();
+
+    const payload: JWTPayloadType = { sid: session_id, uid: userId };
+
+    const { accessToken, refreshToken } =
+      this.jwtService.generateBothAccessAndRefreshToken(payload);
+
+    await this.createSession(session_id, refreshToken, userId, signInMethod);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 }

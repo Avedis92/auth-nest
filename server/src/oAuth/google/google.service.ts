@@ -11,12 +11,10 @@ import {
   generateState,
 } from 'src/utils/pkce.utils';
 import axios from 'axios';
-import * as crypto from 'crypto';
 import {
   GoogleTokenApiResults,
   GoogleAuthProfile,
   CreateUserType,
-  JWTPayloadType,
   SIGN_IN_METHOD,
 } from 'src/common/types';
 import { UsersService } from 'src/users/users.service';
@@ -100,6 +98,10 @@ export class GoogleService {
     return data;
   }
 
+  private hasVerifiedEmail(profile: GoogleAuthProfile) {
+    return String(profile.email_verified) === 'true';
+  }
+
   private async retrieveGoogleProfile(accessToken: string) {
     const googleUserInfoBaseUrl = this.configService.get(
       'google.googleUserInfoEndpoint',
@@ -122,13 +124,30 @@ export class GoogleService {
 
     // 2. No identity yet — does a user with this email already exist
     //    (e.g. they originally signed up with password)?
-    let user: Pick<CreateUserType, 'id' | 'email'>;
+    let existingUser: Pick<CreateUserType, 'id' | 'email'> | undefined;
     try {
-      user = await this.userService.findByEmail(profile.email);
+      existingUser = await this.userService.findByEmail(profile.email);
     } catch (err) {
       if (!(err instanceof NotFoundException)) {
         throw err;
       }
+    }
+
+    let user: Pick<CreateUserType, 'id' | 'email'>;
+    if (existingUser) {
+      // Refuse to link a Google identity to an existing account unless Google
+      // has actually verified this email — otherwise an attacker who controls
+      // an unverified mailbox could hijack someone else's account by signing
+      // in with the victim's email address.
+      if (!this.hasVerifiedEmail(profile)) {
+        throw new BadRequestException({
+          statusCode: HttpStatus.BAD_REQUEST,
+          message:
+            "This Google account's email is not verified, so it can't be linked to an existing account. Verify the email with Google, or sign in with your password instead.",
+        });
+      }
+      user = existingUser;
+    } else {
       // 3. Brand new user
       user = await this.userService.create({
         email: profile.email,
@@ -177,19 +196,11 @@ export class GoogleService {
 
     const user = await this.retrieveGoogleProfile(access_token);
 
-    const session_id = crypto.randomUUID();
-
-    const payload: JWTPayloadType = { sid: session_id, uid: user.id };
-
     const { accessToken, refreshToken } =
-      this.jwtService.generateBothAccessAndRefreshToken(payload);
-
-    await this.sessionService.createSession(
-      session_id,
-      refreshToken,
-      user.id,
-      SIGN_IN_METHOD.OAUTH,
-    );
+      await this.sessionService.issueTokenAndSession(
+        user.id,
+        SIGN_IN_METHOD.OAUTH,
+      );
 
     return { accessToken, refreshToken };
   }

@@ -4,13 +4,13 @@ import { authenticator } from 'otplib';
 import { toDataURL } from 'qrcode';
 import type { Create2FaCodeDto } from './pipes/validate-code/validate-2fa-code';
 import { TWO_FA_ERROR_STATUS } from 'src/common/types';
-import { AuthService } from 'src/auth/auth.service';
+import { SessionService } from 'src/session/session.service';
 
 @Injectable()
 export class TwoFaService {
   constructor(
     private userService: UsersService,
-    private authService: AuthService,
+    private sessionService: SessionService,
   ) {}
 
   private generateOtpSecret(email: string) {
@@ -61,7 +61,8 @@ export class TwoFaService {
     //If it is valid, then update the user's row and enable the 2FA for them
     await this.userService.enableTwoFactorAuth(userId);
     // generate the access and refresh token and send them to the user so they're signed in immediately
-    const { accessToken, refreshToken } = await this.authService.singIn(user);
+    const { accessToken, refreshToken } =
+      await this.sessionService.issueTokenAndSession(userId);
 
     return { accessToken, refreshToken };
   }
@@ -81,7 +82,8 @@ export class TwoFaService {
       });
     }
     // if it is valid, then generate the access and refresh token and send them to the user
-    const { accessToken, refreshToken } = await this.authService.singIn(user);
+    const { accessToken, refreshToken } =
+      await this.sessionService.issueTokenAndSession(userId);
 
     return { accessToken, refreshToken };
   }

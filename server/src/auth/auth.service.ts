@@ -9,7 +9,6 @@ import type { CreateUserDto } from 'src/users/pipes/validate-users/create-user-s
 import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
 import { SessionService } from 'src/session/session.service';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import {
   USERSTATUS,
   JWTPayloadType,
@@ -61,20 +60,11 @@ export class AuthService {
 
   async singIn(user: CreateUserType) {
     const { id } = user;
-    // generate a new session id for the newly signed in user
-    const session_id = crypto.randomUUID();
-
-    const payload: JWTPayloadType = { sid: session_id, uid: id };
 
     const { accessToken, refreshToken } =
-      this.jwtService.generateBothAccessAndRefreshToken(payload);
+      await this.sessionService.issueTokenAndSession(id);
 
-    await this.sessionService.createSession(session_id, refreshToken, id);
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return { accessToken, refreshToken };
   }
 
   async signOut(refreshToken?: string) {

@@ -55,6 +55,7 @@ export enum TWO_FA_ERROR_STATUS {
 export interface JWTPayloadType {
   sid: string;
   uid: string;
+  temporary?: boolean;
 }
 
 export type ValidUserRequestType = Request & { userId: string };

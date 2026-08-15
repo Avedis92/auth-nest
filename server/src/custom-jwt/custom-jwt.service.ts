@@ -11,7 +11,8 @@ export class CustomJwtService {
   ) {}
 
   generateAccessToken(payload: Partial<JWTPayloadType>, temporary = false) {
-    return this.jwtService.sign(payload, {
+    const mainPayload = { ...payload, temporary };
+    return this.jwtService.sign(mainPayload, {
       secret: this.configService.get('jwt.jwtAccessTokenSecret'),
       expiresIn: temporary
         ? this.configService.get('jwt.jwtTempAccessTokenExpire')
