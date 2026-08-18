@@ -3,6 +3,7 @@ import {
   BadRequestException,
   HttpStatus,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -16,6 +17,7 @@ import {
   GoogleAuthProfile,
   CreateUserType,
   SIGN_IN_METHOD,
+  USERS_ERROR_STATUS,
 } from 'src/common/types';
 import { UsersService } from 'src/users/users.service';
 import { PkceService } from './pkce.service';
@@ -195,6 +197,15 @@ export class GoogleService {
     );
 
     const user = await this.retrieveGoogleProfile(access_token);
+
+    const fullUser = await this.userService.findById(user.id);
+    if (fullUser.disable) {
+      throw new UnauthorizedException({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'This account has been disabled. Contact an administrator.',
+        code: USERS_ERROR_STATUS.DISABLED,
+      });
+    }
 
     const { accessToken, refreshToken } =
       await this.sessionService.issueTokenAndSession(

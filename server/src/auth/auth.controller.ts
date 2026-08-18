@@ -27,7 +27,8 @@ import {
   resetPasswordSchema,
 } from './pipes/validate-password/create-password-schema';
 import type { ValidUserRequestType } from 'src/common/types';
-import { JWTAuthGuard } from './guards/auth/auth.guard';
+import { JWTAuthGuard } from 'src/guards/auth.guard';
+import { SessionRevocationGuard } from 'src/guards/session-revocation.guard';
 import { ValidatePasswordPipe } from './pipes/validate-password/validate-password.pipe';
 import { ValidateEmailPipe } from './pipes/validate-email/validate-email.pipe';
 import type { CreateEmailDto } from './pipes/validate-email/create-email-schema';
@@ -144,7 +145,7 @@ export class AuthController {
   }
 
   @Put('change-password')
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, SessionRevocationGuard)
   @UsePipes(new ValidatePasswordPipe(createPasswordSchema))
   async changePassword(
     @Body() passwordDto: CreatePasswordDto,
@@ -205,7 +206,7 @@ export class AuthController {
   }
 
   @Get('sign-in-method')
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, SessionRevocationGuard)
   async getUserSignInMethod(@Cookie('refreshToken') refresh_Token?: string) {
     // After finishing signing in, the user should know what sign in method they used (email and password or oAuth).
     // The reason behind it is that on the navbar, the user's menu options should display the "change password" option

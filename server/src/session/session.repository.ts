@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PG_POOL } from 'src/database/database.module';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { handleDatabaseError } from 'src/error/helper';
 import { SIGN_IN_METHOD } from 'src/common/types';
 import { SessionType, USERSTATUS } from 'src/common/types';
@@ -40,10 +40,14 @@ export class SessionRepository {
     }
   }
 
-  async updateSession(queryText: string, values: any): Promise<SessionType> {
+  async updateSession(
+    queryText: string,
+    values: any,
+    client?: PoolClient,
+  ): Promise<SessionType[]> {
     try {
-      const result = await this.pool.query(queryText, values);
-      return result.rows[0];
+      const result = await (client ?? this.pool).query(queryText, values);
+      return result.rows;
     } catch (error) {
       console.error(`Failed to update session: ${(error as Error).message}`);
       handleDatabaseError(error);

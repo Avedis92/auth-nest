@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PG_POOL } from 'src/database/database.module';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { handleDatabaseError } from 'src/error/helper';
 import { CreateUserInput, CreateUserType } from 'src/common/types';
 
@@ -10,12 +10,12 @@ export class UsersRepository {
 
   async create(
     userDto: CreateUserInput,
-  ): Promise<Pick<CreateUserType, 'id' | 'email'>> {
+  ): Promise<Pick<CreateUserType, 'id' | 'email' | 'role' | 'created_at'>> {
     try {
       const { email, password, isUserRegisteredFor2FA = false } = userDto;
       const result = await this.pool.query(
         `INSERT INTO users (email, password, is_user_registered_for_two_factor)
-                VALUES($1, $2, $3) RETURNING id, email`,
+                VALUES($1, $2, $3) RETURNING id, email, role, created_at`,
         [email, password, isUserRegisteredFor2FA],
       );
       return result.rows[0];
@@ -72,6 +72,28 @@ export class UsersRepository {
     }
   }
 
+  async findByIdForUpdate(
+    id: string,
+    client: PoolClient,
+  ): Promise<CreateUserType | undefined> {
+    // Locks the row inside the caller's transaction so a concurrent
+    // promote/demote on the same user blocks here until the first
+    // transaction commits/rolls back, instead of racing to overwrite
+    // each other's role change.
+    try {
+      const result = await client.query(
+        `SELECT * FROM users WHERE id = $1 FOR UPDATE`,
+        [id],
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error(
+        `ERROR WHEN LOCKING USER WITH ID ${id} FOR UPDATE. error: ${(error as Error).message}`,
+      );
+      handleDatabaseError(error);
+    }
+  }
+
   async setTwoFactorSecret(email: string, secret: string) {
     try {
       await this.pool.query(
@@ -91,9 +113,10 @@ export class UsersRepository {
   async updateUser(
     queryText: string,
     values: any,
+    client?: PoolClient,
   ): Promise<CreateUserType | undefined> {
     try {
-      const result = await this.pool.query(queryText, values);
+      const result = await (client ?? this.pool).query(queryText, values);
       return result.rows[0];
     } catch (error) {
       console.error(`Failed to update user info: ${(error as Error).message}`);

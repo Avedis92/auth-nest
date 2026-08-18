@@ -1,8 +1,9 @@
 import { Request } from 'express';
 
-enum USERROLE {
+export enum USERROLE {
   USER = 'user',
   ADMIN = 'admin',
+  SUPER_ADMIN = 'super_admin',
 }
 
 export interface CreateUserType {
@@ -15,6 +16,7 @@ export interface CreateUserType {
   is_user_registered_for_two_factor: boolean;
   two_factor_secret: string;
   is_two_factor_enabled: boolean;
+  disable: boolean;
 }
 
 export interface CreateUserInput {
@@ -42,14 +44,23 @@ export enum JWT_TOKEN_ERROR_STATUS {
   TOKEN_EXPIRED = 'Token_Expired',
   TOKEN_INVALID = 'Token_Invalid',
   TOKEN_REUSE_DETECTED = 'Token_reuse_detected',
+  SESSION_REVOKED = 'Session_Revoked',
 }
 
 export enum USERS_ERROR_STATUS {
   NOT_FOUND = 'Not_Found',
+  DISABLED = 'User_Disabled',
 }
 
 export enum TWO_FA_ERROR_STATUS {
   INVALID = 'Invalid_code',
+}
+
+// Used when a promote/demote request loses the race: by the time this
+// transaction acquired the row lock, another admin action had already
+// moved the user out of the role this request expected as its starting point.
+export enum ROLE_TRANSITION_ERROR_STATUS {
+  UNEXPECTED_ROLE = 'Unexpected_Role_State',
 }
 
 export interface JWTPayloadType {
@@ -58,7 +69,10 @@ export interface JWTPayloadType {
   temporary?: boolean;
 }
 
-export type ValidUserRequestType = Request & { userId: string };
+export type ValidUserRequestType = Request & {
+  userId: string;
+  userRole: USERROLE;
+};
 
 export interface ResetTokenType {
   id: string;
