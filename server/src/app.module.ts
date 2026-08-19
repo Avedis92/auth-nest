@@ -21,6 +21,7 @@ import { CustomJwtModule } from './custom-jwt/custom-jwt.module';
 import { EncryptionModule } from './encryption/encryption.module';
 import { encryptionConfig } from './config/encryption.config';
 import { IdentitiesModule } from './identities/identities.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { IdentitiesModule } from './identities/identities.module';
     CustomJwtModule,
     EncryptionModule,
     IdentitiesModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

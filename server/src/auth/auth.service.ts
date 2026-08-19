@@ -76,16 +76,7 @@ export class AuthService {
       refreshToken,
     );
 
-    const expiredAt = new Date(Date.now());
-    // Use session id to update the session's expiry date
-    await this.sessionService.updateSession(
-      { id: payload.sid },
-      {
-        expires_at: expiredAt,
-        status: USERSTATUS.LOGGED_OUT,
-        refresh_token: '',
-      },
-    );
+    await this.sessionService.revokeUserSession(payload.sid, payload.uid);
   }
   async refresh(refresh_Token?: string) {
     // First check if refresh token exists. If not, then throw an unauthorized error

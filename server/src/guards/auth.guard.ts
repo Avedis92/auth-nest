@@ -49,8 +49,9 @@ export class JWTAuthGuard implements CanActivate {
       // we should reject any attempt of using temporary tokens(2FA for example)
       // And prevent malicious users from accessing private resources with these types of tokens
       if (payload.temporary) return false;
-      await this.userService.findById(payload.uid);
+      const user = await this.userService.findById(payload.uid);
       request.userId = payload.uid;
+      request.userRole = user.role;
       return true;
     }
   }

@@ -7,9 +7,12 @@ import { OAuthCallbackPage } from './components/auth/OAuthCallbackPage';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { ProtectedPage } from './components/protected/ProtectedPage';
 import { RequireAuth } from './components/routing/RequireAuth';
+import { RequireRole } from './components/routing/RequireRole';
 import { AuthenticatedLayout } from './components/layout/AuthenticatedLayout';
-import { signOut, getSignInMethod, refreshAccessToken, ApiRequestError } from './api/client';
-import { JWT_TOKEN_ERROR_STATUS, type SignInMethod } from './types/auth';
+import { AdminPage } from './components/admin/AdminPage';
+import { signOut, getSignInMethod } from './api/client';
+import { callWithTokenRefresh } from './api/withTokenRefresh';
+import { USER_ROLE, type SignInMethod, type UserRole } from './types/auth';
 
 const ACCESS_TOKEN_STORAGE_KEY = 'accessToken';
 
@@ -22,6 +25,7 @@ const App = () => {
   const [alert, setAlert] = useState<AlertState>(null);
   const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
   const [signInMethod, setSignInMethod] = useState<SignInMethod | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const closeAlert = () => setAlert(null);
@@ -100,25 +104,22 @@ const App = () => {
   useEffect(() => {
     if (!accessToken) {
       setSignInMethod(null);
+      setRole(null);
       return;
     }
     let cancelled = false;
     const loadSignInMethod = async () => {
       try {
-        const result = await getSignInMethod(accessToken);
-        if (!cancelled) setSignInMethod(result.signInMethod);
-      } catch (error) {
-        const code = error instanceof ApiRequestError ? error.body.code : undefined;
-        if (code !== JWT_TOKEN_ERROR_STATUS.TOKEN_EXPIRED) return;
-        try {
-          const refreshed = await refreshAccessToken();
-          if (cancelled) return;
-          handleTokenRefreshed(refreshed.token);
-          const retryResult = await getSignInMethod(refreshed.token);
-          if (!cancelled) setSignInMethod(retryResult.signInMethod);
-        } catch {
-          // leave signInMethod as-is; menu item just stays hidden until next successful fetch
-        }
+        const result = await callWithTokenRefresh(
+          { accessToken, onTokenRefreshed: handleTokenRefreshed },
+          (token) => getSignInMethod(token),
+        );
+        if (cancelled) return;
+        setSignInMethod(result.signInMethod);
+        setRole(result.role);
+      } catch {
+        // leave state as-is; nav item / admin route guard stay in their
+        // previous state until the next successful fetch
       }
     };
     loadSignInMethod();
@@ -138,6 +139,11 @@ const App = () => {
 
   const handleChangePasswordError = () =>
     setAlert({ severity: 'error', message: 'Failed to change password. Please try again' });
+
+  const handleAdminActionSuccess = (message: string) =>
+    setAlert({ severity: 'success', message });
+
+  const handleAdminActionError = (message: string) => setAlert({ severity: 'error', message });
 
   return (
     <>
@@ -181,6 +187,7 @@ const App = () => {
                 onSignOut={handleSignOut}
                 onOpenChangePassword={handleOpenChangePassword}
                 signInMethod={signInMethod}
+                role={role}
                 accessToken={accessToken}
                 showChangePasswordForm={showChangePasswordForm}
                 onCloseChangePassword={handleCloseChangePassword}
@@ -206,6 +213,27 @@ const App = () => {
                 />
               }
             />
+            <Route
+              element={
+                <RequireRole role={role} allowedRoles={[USER_ROLE.ADMIN, USER_ROLE.SUPER_ADMIN]} />
+              }
+            >
+              <Route
+                path="/admin"
+                element={
+                  role ? (
+                    <AdminPage
+                      accessToken={accessToken}
+                      role={role}
+                      onTokenRefreshed={handleTokenRefreshed}
+                      onAuthFailure={handleAuthFailure}
+                      onActionSuccess={handleAdminActionSuccess}
+                      onActionError={handleAdminActionError}
+                    />
+                  ) : null
+                }
+              />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -12,12 +12,13 @@ import { TwoFaService } from './two-fa.service';
 import { ValidateCodePipe } from './pipes/validate-code/validate-code.pipe';
 import type { Create2FaCodeDto } from './pipes/validate-code/validate-2fa-code';
 import { create2FaCodeSchema } from './pipes/validate-code/validate-2fa-code';
-import { JWTAuthGuard } from 'src/auth/guards/auth/auth.guard';
+import { JWTAuthGuard } from 'src/guards/auth.guard';
+import { SessionRevocationGuard } from 'src/guards/session-revocation.guard';
 import type { ValidUserRequestType } from 'src/common/types';
 import { REFRESH_TOKEN_MAX_AGE_MS } from 'src/common/constant';
 
 @Controller('api/v1/two-fa')
-@UseGuards(JWTAuthGuard)
+@UseGuards(JWTAuthGuard, SessionRevocationGuard)
 export class TwoFaController {
   constructor(private twoFaService: TwoFaService) {}
 

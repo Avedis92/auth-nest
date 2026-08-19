@@ -5,12 +5,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { CreateUserInput } from 'src/common/types';
+import type { PoolClient } from 'pg';
 import { UsersRepository } from './users.repository';
 import { hashAnElement, verifyAHashedElement } from 'src/common/helpers/hash';
-import { USERS_ERROR_STATUS, CreateUserType, Tables } from 'src/common/types';
+import {
+  USERS_ERROR_STATUS,
+  CreateUserType,
+  Tables,
+  USERROLE,
+} from 'src/common/types';
 import { generateUpdateQuery } from 'src/common/queries/update';
 import type { CreateUserDto } from './pipes/validate-users/create-user-schema';
-
 @Injectable()
 export class UsersService {
   constructor(private usersRepository: UsersRepository) {}
@@ -52,16 +57,33 @@ export class UsersService {
     return foundUser;
   }
 
+  async findByIdForUpdate(id: string, client: PoolClient) {
+    const foundUser = await this.usersRepository.findByIdForUpdate(id, client);
+    if (!foundUser) {
+      throw new NotFoundException({
+        statusCode: HttpStatus.NOT_FOUND,
+        message: `The user with id ${id} does not exist.`,
+        code: USERS_ERROR_STATUS.NOT_FOUND,
+      });
+    }
+    return foundUser;
+  }
+
   async updateUserInfo(
     filters: Partial<CreateUserType>,
     options: Partial<CreateUserType>,
+    client?: PoolClient,
   ) {
     const { queryText, values } = generateUpdateQuery(
       filters,
       options,
       Tables.USERS,
     );
-    const foundUser = await this.usersRepository.updateUser(queryText, values);
+    const foundUser = await this.usersRepository.updateUser(
+      queryText,
+      values,
+      client,
+    );
     if (!foundUser) {
       throw new NotFoundException({
         statusCode: HttpStatus.NOT_FOUND,
@@ -86,6 +108,15 @@ export class UsersService {
         message: `The password that is send for the user ${user.id} does not match the password in the database`,
       });
     }
+
+    if (user.disabled) {
+      throw new UnauthorizedException({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'This account has been disabled. Contact an administrator.',
+        code: USERS_ERROR_STATUS.DISABLED,
+      });
+    }
+
     return user;
   }
 
@@ -96,11 +127,67 @@ export class UsersService {
     );
     return user;
   }
+
   async setTowFactorSecret(email: string, secret: string) {
     const user = await this.updateUserInfo(
       { email },
       { two_factor_secret: secret },
     );
     return user;
+  }
+
+  async changeUserRole(userId: string, role: USERROLE, client?: PoolClient) {
+    const user = await this.updateUserInfo({ id: userId }, { role }, client);
+    return user;
+  }
+
+  async disableUser(userId: string, client?: PoolClient) {
+    const user = await this.updateUserInfo(
+      { id: userId },
+      { disabled: true },
+      client,
+    );
+    return user;
+  }
+
+  async enableUser(userId: string) {
+    const user = await this.updateUserInfo({ id: userId }, { disabled: false });
+    return user;
+  }
+
+  async findAllPaginated(params: {
+    limit: number;
+    offset: number;
+    search?: string;
+    excludeSuperAdmin: boolean;
+    excludeUserId?: string;
+  }) {
+    const { limit, offset, search, excludeSuperAdmin, excludeUserId } = params;
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (search) {
+      values.push(`%${search}%`);
+      conditions.push(`email ILIKE $${values.length}`);
+    }
+    if (excludeSuperAdmin) {
+      values.push(USERROLE.SUPER_ADMIN);
+      conditions.push(`role != $${values.length}`);
+    }
+    if (excludeUserId) {
+      values.push(excludeUserId);
+      conditions.push(`id != $${values.length}`);
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+
+    return this.usersRepository.findAllPaginated({
+      limit,
+      offset,
+      whereClause,
+      values,
+    });
   }
 }
