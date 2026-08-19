@@ -3,7 +3,6 @@ import {
   Get,
   Patch,
   UseGuards,
-  UsePipes,
   Param,
   Query,
   Req,
@@ -26,9 +25,9 @@ export class AdminController {
   constructor(private adminsService: AdminService) {}
 
   @Get('users')
-  @UsePipes(new ValidateUsersPipe(listUsersQuerySchema))
   async listUsers(
-    @Query() query: ListUsersQueryDto,
+    @Query(new ValidateUsersPipe(listUsersQuerySchema))
+    query: ListUsersQueryDto,
     @Req() req: ValidUserRequestType,
   ) {
     return this.adminsService.listUsers(query, req.userRole);
