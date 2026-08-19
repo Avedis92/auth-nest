@@ -21,7 +21,6 @@ import {
 } from 'src/common/types';
 import { UsersService } from 'src/users/users.service';
 import { PkceService } from './pkce.service';
-import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
 import { IdentitiesService } from 'src/identities/identities.service';
 import { SessionService } from 'src/session/session.service';
 
@@ -33,7 +32,6 @@ export class GoogleService {
   constructor(
     private configService: ConfigService,
     private userService: UsersService,
-    private jwtService: CustomJwtService,
     private identitiesService: IdentitiesService,
     private sessionService: SessionService,
     private pkceService: PkceService,
@@ -199,7 +197,7 @@ export class GoogleService {
     const user = await this.retrieveGoogleProfile(access_token);
 
     const fullUser = await this.userService.findById(user.id);
-    if (fullUser.disable) {
+    if (fullUser.disabled) {
       throw new UnauthorizedException({
         statusCode: HttpStatus.UNAUTHORIZED,
         message: 'This account has been disabled. Contact an administrator.',

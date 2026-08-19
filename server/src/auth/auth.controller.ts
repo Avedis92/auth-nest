@@ -207,12 +207,17 @@ export class AuthController {
 
   @Get('sign-in-method')
   @UseGuards(JWTAuthGuard, SessionRevocationGuard)
-  async getUserSignInMethod(@Cookie('refreshToken') refresh_Token?: string) {
+  async getUserSignInMethod(
+    @Req() req: ValidUserRequestType,
+    @Cookie('refreshToken') refresh_Token?: string,
+  ) {
     // After finishing signing in, the user should know what sign in method they used (email and password or oAuth).
     // The reason behind it is that on the navbar, the user's menu options should display the "change password" option
     // only when the user signed in using their email and password.
+    // The user's role is also returned here so the frontend can gate the admin
+    // nav item/route, since it's not otherwise derivable client-side.
     const signInMethod =
       await this.authService.getUserSignInMethod(refresh_Token);
-    return { signInMethod };
+    return { signInMethod, role: req.userRole };
   }
 }

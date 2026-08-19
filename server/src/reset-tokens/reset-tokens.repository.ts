@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { PG_POOL } from 'src/database/database.module';
+import { PG_POOL } from 'src/database/database.constants';
 import { Pool } from 'pg';
 import { handleDatabaseError } from 'src/error/helper';
 import { ResetTokenType } from 'src/common/types';

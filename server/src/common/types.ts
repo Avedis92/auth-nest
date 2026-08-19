@@ -16,7 +16,7 @@ export interface CreateUserType {
   is_user_registered_for_two_factor: boolean;
   two_factor_secret: string;
   is_two_factor_enabled: boolean;
-  disable: boolean;
+  disabled: boolean;
 }
 
 export interface CreateUserInput {
@@ -61,6 +61,13 @@ export enum TWO_FA_ERROR_STATUS {
 // moved the user out of the role this request expected as its starting point.
 export enum ROLE_TRANSITION_ERROR_STATUS {
   UNEXPECTED_ROLE = 'Unexpected_Role_State',
+}
+
+// Returned by admin mutation endpoints when the action targets the caller's
+// own account, or when the caller's role is insufficient for the target's role.
+export enum ADMIN_ACTION_ERROR_STATUS {
+  SELF_ACTION_FORBIDDEN = 'Self_Action_Forbidden',
+  TARGET_ROLE_FORBIDDEN = 'Target_Role_Forbidden',
 }
 
 export interface JWTPayloadType {

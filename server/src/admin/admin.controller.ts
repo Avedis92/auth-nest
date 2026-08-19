@@ -30,18 +30,18 @@ export class AdminController {
     query: ListUsersQueryDto,
     @Req() req: ValidUserRequestType,
   ) {
-    return this.adminsService.listUsers(query, req.userRole);
+    return this.adminsService.listUsers(query, req.userRole, req.userId);
   }
 
   @Patch('disable/:id')
-  async disableUser(@Param('id') id: string) {
-    await this.adminsService.disableUser(id);
+  async disableUser(@Param('id') id: string, @Req() req: ValidUserRequestType) {
+    await this.adminsService.disableUser(id, req.userId, req.userRole);
     return { message: 'User successfully disabled', success: true };
   }
 
   @Patch('enable/:id')
-  async enableUser(@Param('id') id: string) {
-    await this.adminsService.enableUser(id);
+  async enableUser(@Param('id') id: string, @Req() req: ValidUserRequestType) {
+    await this.adminsService.enableUser(id, req.userRole);
     return { message: 'User successfully enabled', success: true };
   }
 
@@ -59,8 +59,11 @@ export class AdminController {
   // reflector.getAllAndOverride, so handler metadata wins over class).
   @Patch('demote/:id')
   @Roles([USERROLE.SUPER_ADMIN])
-  async demoteToUser(@Param('id') id: string) {
-    await this.adminsService.demoteToUser(id);
+  async demoteToUser(
+    @Param('id') id: string,
+    @Req() req: ValidUserRequestType,
+  ) {
+    await this.adminsService.demoteToUser(id, req.userId);
     return {
       message: 'User successfully demoted to regular user',
       success: true,

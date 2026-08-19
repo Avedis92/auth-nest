@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
-import { PG_POOL } from './database.module';
+import { PG_POOL } from './database.constants';
 
 @Injectable()
 export class DatabaseService {

@@ -80,6 +80,15 @@ export const SIGN_IN_METHOD = {
 
 export type SignInMethod = (typeof SIGN_IN_METHOD)[keyof typeof SIGN_IN_METHOD];
 
+export const USER_ROLE = {
+  USER: 'user',
+  ADMIN: 'admin',
+  SUPER_ADMIN: 'super_admin',
+} as const;
+
+export type UserRole = (typeof USER_ROLE)[keyof typeof USER_ROLE];
+
 export interface SignInMethodResponse {
   signInMethod: SignInMethod;
+  role: UserRole;
 }

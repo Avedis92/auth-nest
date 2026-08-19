@@ -16,35 +16,9 @@ import {
 } from 'src/common/types';
 import { generateUpdateQuery } from 'src/common/queries/update';
 import type { CreateUserDto } from './pipes/validate-users/create-user-schema';
-
-// interface UserCacheType {
-//   email: string;
-//   signUpDate: Date;
-//   role: USERROLE;
-// }
-
-// type InfoToUpdate = Partial<
-//   Pick<CreateUserType, 'id' | 'email' | 'role' | 'created_at'>
-// >;
 @Injectable()
 export class UsersService {
-  // private usersCache = new Map<string, UserCacheType>();
   constructor(private usersRepository: UsersRepository) {}
-
-  // private addInfoToCache(
-  //   info: Pick<CreateUserType, 'id' | 'email' | 'role' | 'created_at'>,
-  // ) {
-  //   const { id, email, role, created_at } = info;
-  //   this.usersCache.set(id, { email, role, signUpDate: created_at });
-  // }
-
-  // private updateUserCacheInfo(userId: string, updateInfo: InfoToUpdate) {
-  //   const user = this.usersCache.get(userId) as UserCacheType;
-  //   this.usersCache.set(userId, {
-  //     ...user,
-  //     ...updateInfo,
-  //   });
-  // }
 
   async create(userDto: CreateUserInput) {
     const { password } = userDto;
@@ -53,7 +27,6 @@ export class UsersService {
       ...userDto,
       password: hashedPassword,
     });
-    // this.addInfoToCache(result);
     return result;
   }
 
@@ -136,7 +109,7 @@ export class UsersService {
       });
     }
 
-    if (user.disable) {
+    if (user.disabled) {
       throw new UnauthorizedException({
         statusCode: HttpStatus.UNAUTHORIZED,
         message: 'This account has been disabled. Contact an administrator.',
@@ -165,21 +138,20 @@ export class UsersService {
 
   async changeUserRole(userId: string, role: USERROLE, client?: PoolClient) {
     const user = await this.updateUserInfo({ id: userId }, { role }, client);
-    // this.updateUserCacheInfo(userId, { role });
     return user;
   }
 
   async disableUser(userId: string, client?: PoolClient) {
     const user = await this.updateUserInfo(
       { id: userId },
-      { disable: true },
+      { disabled: true },
       client,
     );
     return user;
   }
 
   async enableUser(userId: string) {
-    const user = await this.updateUserInfo({ id: userId }, { disable: false });
+    const user = await this.updateUserInfo({ id: userId }, { disabled: false });
     return user;
   }
 
@@ -188,7 +160,34 @@ export class UsersService {
     offset: number;
     search?: string;
     excludeSuperAdmin: boolean;
+    excludeUserId?: string;
   }) {
-    return this.usersRepository.findAllPaginated(params);
+    const { limit, offset, search, excludeSuperAdmin, excludeUserId } = params;
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (search) {
+      values.push(`%${search}%`);
+      conditions.push(`email ILIKE $${values.length}`);
+    }
+    if (excludeSuperAdmin) {
+      values.push(USERROLE.SUPER_ADMIN);
+      conditions.push(`role != $${values.length}`);
+    }
+    if (excludeUserId) {
+      values.push(excludeUserId);
+      conditions.push(`id != $${values.length}`);
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+
+    return this.usersRepository.findAllPaginated({
+      limit,
+      offset,
+      whereClause,
+      values,
+    });
   }
 }

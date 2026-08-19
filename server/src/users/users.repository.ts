@@ -1,8 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { PG_POOL } from 'src/database/database.module';
+import { PG_POOL } from 'src/database/database.constants';
 import { Pool, PoolClient } from 'pg';
 import { handleDatabaseError } from 'src/error/helper';
-import { CreateUserInput, CreateUserType, USERROLE } from 'src/common/types';
+import { CreateUserInput, CreateUserType } from 'src/common/types';
 
 @Injectable()
 export class UsersRepository {
@@ -127,25 +127,10 @@ export class UsersRepository {
   async findAllPaginated(params: {
     limit: number;
     offset: number;
-    search?: string;
-    excludeSuperAdmin: boolean;
+    whereClause: string;
+    values: unknown[];
   }): Promise<{ users: CreateUserType[]; total: number }> {
-    const { limit, offset, search, excludeSuperAdmin } = params;
-    const conditions: string[] = [];
-    const values: unknown[] = [];
-
-    if (search) {
-      values.push(`%${search}%`);
-      conditions.push(`email ILIKE $${values.length}`);
-    }
-    if (excludeSuperAdmin) {
-      values.push(USERROLE.SUPER_ADMIN);
-      conditions.push(`role != $${values.length}`);
-    }
-
-    const whereClause = conditions.length
-      ? `WHERE ${conditions.join(' AND ')}`
-      : '';
+    const { limit, offset, whereClause, values } = params;
 
     try {
       const { rows: countRows } = await this.pool.query<{ total: number }>(
@@ -155,7 +140,7 @@ export class UsersRepository {
 
       const dataValues = [...values, limit, offset];
       const { rows } = await this.pool.query<CreateUserType>(
-        `SELECT id, email, role, disable, created_at
+        `SELECT id, email, role, disabled, created_at
          FROM users
          ${whereClause}
          ORDER BY created_at DESC

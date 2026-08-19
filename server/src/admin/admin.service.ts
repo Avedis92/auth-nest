@@ -1,8 +1,17 @@
-import { Injectable, ConflictException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+  HttpStatus,
+} from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { SessionService } from 'src/session/session.service';
 import { DatabaseService } from 'src/database/database.service';
-import { ROLE_TRANSITION_ERROR_STATUS, USERROLE } from 'src/common/types';
+import {
+  ADMIN_ACTION_ERROR_STATUS,
+  ROLE_TRANSITION_ERROR_STATUS,
+  USERROLE,
+} from 'src/common/types';
 import type { ListUsersQueryDto } from './pipes/list-users-query.schema';
 import type { AdminUserListItem, AdminUserListResponse } from './admin.types';
 
@@ -14,7 +23,24 @@ export class AdminService {
     private databaseService: DatabaseService,
   ) {}
 
-  async disableUser(userId: string) {
+  async disableUser(
+    userId: string,
+    requesterId: string,
+    requesterRole: USERROLE,
+  ) {
+    if (userId === requesterId) {
+      throw new ForbiddenException({
+        statusCode: HttpStatus.FORBIDDEN,
+        message: 'You cannot disable your own account',
+        code: ADMIN_ACTION_ERROR_STATUS.SELF_ACTION_FORBIDDEN,
+      });
+    }
+    this.assertTargetRoleAllowed(
+      await this.userService.findById(userId),
+      requesterRole,
+      'disable',
+    );
+
     return this.databaseService.runInTransaction(async (client) => {
       const user = await this.userService.disableUser(userId, client);
       await this.sessionService.revokeAllSessionsForUser(userId, client);
@@ -22,8 +48,39 @@ export class AdminService {
     });
   }
 
-  async enableUser(userId: string) {
+  async enableUser(userId: string, requesterRole: USERROLE) {
+    this.assertTargetRoleAllowed(
+      await this.userService.findById(userId),
+      requesterRole,
+      'enable',
+    );
     return this.userService.enableUser(userId);
+  }
+
+  // Shared by disable/enable: a super_admin target can never be toggled from
+  // this panel, and an admin target requires a super_admin caller.
+  private assertTargetRoleAllowed(
+    target: { role: USERROLE },
+    requesterRole: USERROLE,
+    action: 'disable' | 'enable',
+  ) {
+    if (target.role === USERROLE.SUPER_ADMIN) {
+      throw new ForbiddenException({
+        statusCode: HttpStatus.FORBIDDEN,
+        message: `Super admin accounts cannot be ${action}d from this panel`,
+        code: ADMIN_ACTION_ERROR_STATUS.TARGET_ROLE_FORBIDDEN,
+      });
+    }
+    if (
+      target.role === USERROLE.ADMIN &&
+      requesterRole !== USERROLE.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException({
+        statusCode: HttpStatus.FORBIDDEN,
+        message: `Only a super admin can ${action} an admin account`,
+        code: ADMIN_ACTION_ERROR_STATUS.TARGET_ROLE_FORBIDDEN,
+      });
+    }
   }
 
   async promoteToAdmin(userId: string) {
@@ -49,7 +106,14 @@ export class AdminService {
     });
   }
 
-  async demoteToUser(userId: string) {
+  async demoteToUser(userId: string, requesterId: string) {
+    if (userId === requesterId) {
+      throw new ForbiddenException({
+        statusCode: HttpStatus.FORBIDDEN,
+        message: 'You cannot demote your own account',
+        code: ADMIN_ACTION_ERROR_STATUS.SELF_ACTION_FORBIDDEN,
+      });
+    }
     return this.databaseService.runInTransaction(async (client) => {
       // Same locking strategy as promoteToAdmin — see comment there.
       const user = await this.userService.findByIdForUpdate(userId, client);
@@ -76,6 +140,7 @@ export class AdminService {
   async listUsers(
     query: ListUsersQueryDto,
     requesterRole: USERROLE,
+    requesterId: string,
   ): Promise<AdminUserListResponse> {
     const { limit, offset, search } = query;
     const excludeSuperAdmin = requesterRole !== USERROLE.SUPER_ADMIN;
@@ -85,6 +150,7 @@ export class AdminService {
       offset,
       search,
       excludeSuperAdmin,
+      excludeUserId: requesterId, // never show the viewer their own row
     });
 
     const sessionInfoByUserId = this.sessionService.getBatchUsersInfo(
@@ -97,7 +163,7 @@ export class AdminService {
         id: user.id,
         email: user.email,
         role: user.role,
-        status: user.disable ? 'disabled' : 'enabled',
+        status: user.disabled ? 'disabled' : 'enabled',
         signUpDate: user.created_at,
         lastSignInDate: sessionInfo?.signInDate ?? null,
         lastSignOutDate: sessionInfo?.signOutDate ?? null,
