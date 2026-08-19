@@ -2,7 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { PG_POOL } from 'src/database/database.module';
 import { Pool, PoolClient } from 'pg';
 import { handleDatabaseError } from 'src/error/helper';
-import { CreateUserInput, CreateUserType } from 'src/common/types';
+import { CreateUserInput, CreateUserType, USERROLE } from 'src/common/types';
 
 @Injectable()
 export class UsersRepository {
@@ -120,6 +120,52 @@ export class UsersRepository {
       return result.rows[0];
     } catch (error) {
       console.error(`Failed to update user info: ${(error as Error).message}`);
+      handleDatabaseError(error);
+    }
+  }
+
+  async findAllPaginated(params: {
+    limit: number;
+    offset: number;
+    search?: string;
+    excludeSuperAdmin: boolean;
+  }): Promise<{ users: CreateUserType[]; total: number }> {
+    const { limit, offset, search, excludeSuperAdmin } = params;
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (search) {
+      values.push(`%${search}%`);
+      conditions.push(`email ILIKE $${values.length}`);
+    }
+    if (excludeSuperAdmin) {
+      values.push(USERROLE.SUPER_ADMIN);
+      conditions.push(`role != $${values.length}`);
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+
+    try {
+      const { rows: countRows } = await this.pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total FROM users ${whereClause}`,
+        values,
+      );
+
+      const dataValues = [...values, limit, offset];
+      const { rows } = await this.pool.query<CreateUserType>(
+        `SELECT id, email, role, disable, created_at
+         FROM users
+         ${whereClause}
+         ORDER BY created_at DESC
+         LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}`,
+        dataValues,
+      );
+
+      return { users: rows, total: countRows[0].total };
+    } catch (error) {
+      console.error(`Failed to list users: ${(error as Error).message}`);
       handleDatabaseError(error);
     }
   }

@@ -182,4 +182,13 @@ export class UsersService {
     const user = await this.updateUserInfo({ id: userId }, { disable: false });
     return user;
   }
+
+  async findAllPaginated(params: {
+    limit: number;
+    offset: number;
+    search?: string;
+    excludeSuperAdmin: boolean;
+  }) {
+    return this.usersRepository.findAllPaginated(params);
+  }
 }

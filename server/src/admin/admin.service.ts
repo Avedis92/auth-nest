@@ -3,6 +3,8 @@ import { UsersService } from 'src/users/users.service';
 import { SessionService } from 'src/session/session.service';
 import { DatabaseService } from 'src/database/database.service';
 import { ROLE_TRANSITION_ERROR_STATUS, USERROLE } from 'src/common/types';
+import type { ListUsersQueryDto } from './pipes/list-users-query.schema';
+import type { AdminUserListItem, AdminUserListResponse } from './admin.types';
 
 @Injectable()
 export class AdminService {
@@ -69,5 +71,48 @@ export class AdminService {
       await this.sessionService.revokeAllSessionsForUser(userId, client);
       return updatedUser;
     });
+  }
+
+  async listUsers(
+    query: ListUsersQueryDto,
+    requesterRole: USERROLE,
+  ): Promise<AdminUserListResponse> {
+    const { limit, offset, search } = query;
+    const excludeSuperAdmin = requesterRole !== USERROLE.SUPER_ADMIN;
+
+    const { users, total } = await this.userService.findAllPaginated({
+      limit,
+      offset,
+      search,
+      excludeSuperAdmin,
+    });
+
+    const sessionInfoByUserId = this.sessionService.getBatchUsersInfo(
+      users.map((user) => user.id),
+    );
+
+    const data: AdminUserListItem[] = users.map((user) => {
+      const sessionInfo = sessionInfoByUserId.get(user.id);
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        status: user.disable ? 'disabled' : 'enabled',
+        signUpDate: user.created_at,
+        lastSignInDate: sessionInfo?.signInDate ?? null,
+        lastSignOutDate: sessionInfo?.signOutDate ?? null,
+        activeSessionsCount: sessionInfo?.sessionsCount ?? 0,
+      };
+    });
+
+    return {
+      data,
+      pagination: {
+        total,
+        limit,
+        offset,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }
