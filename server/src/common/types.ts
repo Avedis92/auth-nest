@@ -45,6 +45,7 @@ export enum JWT_TOKEN_ERROR_STATUS {
   TOKEN_INVALID = 'Token_Invalid',
   TOKEN_REUSE_DETECTED = 'Token_reuse_detected',
   SESSION_REVOKED = 'Session_Revoked',
+  TEMPORARY_TOKEN_NOT_ALLOWED = 'Temporary_Token_Not_Allowed',
 }
 
 export enum USERS_ERROR_STATUS {

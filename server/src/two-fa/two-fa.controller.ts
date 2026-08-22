@@ -13,12 +13,13 @@ import { ValidateCodePipe } from './pipes/validate-code/validate-code.pipe';
 import type { Create2FaCodeDto } from './pipes/validate-code/validate-2fa-code';
 import { create2FaCodeSchema } from './pipes/validate-code/validate-2fa-code';
 import { JWTAuthGuard } from 'src/guards/auth.guard';
-import { SessionRevocationGuard } from 'src/guards/session-revocation.guard';
 import type { ValidUserRequestType } from 'src/common/types';
 import { REFRESH_TOKEN_MAX_AGE_MS } from 'src/common/constant';
+import { AllowTemporaryToken } from 'src/common/reusable_decorator/allow-temporary-token';
 
 @Controller('api/v1/two-fa')
-@UseGuards(JWTAuthGuard, SessionRevocationGuard)
+@UseGuards(JWTAuthGuard)
+@AllowTemporaryToken()
 export class TwoFaController {
   constructor(private twoFaService: TwoFaService) {}
 

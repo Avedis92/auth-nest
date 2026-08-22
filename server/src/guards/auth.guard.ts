@@ -5,16 +5,19 @@ import {
   UnauthorizedException,
   HttpStatus,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { JWT_TOKEN_ERROR_STATUS, ValidUserRequestType } from 'src/common/types';
 import { UsersService } from 'src/users/users.service';
 import { CustomJwtService } from 'src/custom-jwt/custom-jwt.service';
+import { ALLOW_TEMPORARY_TOKEN_KEY } from 'src/common/reusable_decorator/allow-temporary-token';
 
 @Injectable()
 export class JWTAuthGuard implements CanActivate {
   constructor(
     private jwtService: CustomJwtService,
     private userService: UsersService,
+    private reflector: Reflector,
   ) {}
   private extractTokenFromHeader(request: Request) {
     const authHeader = request.headers.authorization;
@@ -47,8 +50,19 @@ export class JWTAuthGuard implements CanActivate {
         accessToken,
       );
       // we should reject any attempt of using temporary tokens(2FA for example)
-      // And prevent malicious users from accessing private resources with these types of tokens
-      if (payload.temporary) return false;
+      // And prevent malicious users from accessing private resources with these types of tokens,
+      // unless the target route explicitly opted in via @AllowTemporaryToken()
+      const allowsTemporaryToken = this.reflector.getAllAndOverride<boolean>(
+        ALLOW_TEMPORARY_TOKEN_KEY,
+        [context.getHandler(), context.getClass()],
+      );
+      if (payload.temporary && !allowsTemporaryToken) {
+        throw new UnauthorizedException({
+          statusCode: HttpStatus.UNAUTHORIZED,
+          message: 'Temporary token is not allowed on this route',
+          code: JWT_TOKEN_ERROR_STATUS.TEMPORARY_TOKEN_NOT_ALLOWED,
+        });
+      }
       const user = await this.userService.findById(payload.uid);
       request.userId = payload.uid;
       request.userRole = user.role;
